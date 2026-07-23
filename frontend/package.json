@@ -1,0 +1,33 @@
+{
+  "name": "chatbot-rag-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "next": "15.1.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "lucide-react": "^0.468.0",
+    "clsx": "^2.1.1",
+    "react-markdown": "^9.0.1",
+    "remark-gfm": "^4.0.0",
+    "react-syntax-highlighter": "^15.6.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@types/react-syntax-highlighter": "^15.5.13",
+    "typescript": "^5",
+    "eslint": "^8",
+    "eslint-config-next": "15.1.0",
+    "tailwindcss": "^3.4.1",
+    "postcss": "^8",
+    "autoprefixer": "^10.0.1"
+  }
+}

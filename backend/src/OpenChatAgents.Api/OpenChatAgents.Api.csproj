@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AWSSDK.Bedrock" Version="4.0.100.6" />
+    <PackageReference Include="AWSSDK.BedrockRuntime" Version="4.0.100.6" />
+    <PackageReference Include="AWSSDK.Extensions.Bedrock.MEAI" Version="4.0.101.6" />
+    <PackageReference Include="Microsoft.Agents.AI" Version="1.15.0" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.7" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+    <PackageReference Include="OllamaSharp" Version="5.4.27" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,41 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: chatbot
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    ports:
+      - "8090:8090"
+    environment:
+      ConnectionStrings__Default: "Host=postgres;Port=5432;Database=chatbot;Username=postgres;Password=postgres"
+      AppSettings__OllamaBaseUrl: "http://host.docker.internal:11434"
+      AppSettings__LlmModel: "gemma3"
+      AppSettings__CorsOrigins__0: "http://localhost:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8090
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
