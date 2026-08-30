@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Models = OpenChatAgents.Infrastructure.Models;
 
 namespace OpenChatAgents.Api.Dtos;
 
@@ -21,6 +22,8 @@ public class AgentCreate
 
     [Required, MinLength(1)]
     public string SystemPrompt { get; set; } = string.Empty;
+
+    public Guid[] KnowledgeBaseIds { get; set; } = [];
 }
 
 public class AgentUpdate
@@ -42,6 +45,14 @@ public class AgentUpdate
 
     [MinLength(1)]
     public string? SystemPrompt { get; set; }
+
+    public Guid[]? KnowledgeBaseIds { get; set; }
+}
+
+public class AgentKnowledgeBaseSummary
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
 }
 
 public class AgentResponse
@@ -53,6 +64,8 @@ public class AgentResponse
     public double Temperature { get; set; }
     public int? MaxTokens { get; set; }
     public string SystemPrompt { get; set; } = string.Empty;
+    public UserResponse? CreatedBy { get; set; }
+    public List<AgentKnowledgeBaseSummary> KnowledgeBases { get; set; } = [];
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 
@@ -65,6 +78,10 @@ public class AgentResponse
         Temperature = agent.Temperature,
         MaxTokens = agent.MaxTokens,
         SystemPrompt = agent.SystemPrompt,
+        CreatedBy = agent.CreatedByUser is null ? null : UserResponse.FromEntity(agent.CreatedByUser),
+        KnowledgeBases = [.. agent.KnowledgeBaseLinks
+            .Where(l => l.KnowledgeBase is not null)
+            .Select(l => new AgentKnowledgeBaseSummary { Id = l.KnowledgeBase!.Id, Name = l.KnowledgeBase.Name })],
         CreatedAt = agent.CreatedAt,
         UpdatedAt = agent.UpdatedAt,
     };

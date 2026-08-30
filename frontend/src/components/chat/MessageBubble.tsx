@@ -1,6 +1,11 @@
-import clsx from "clsx";
-import { Check, Copy } from "lucide-react";
+"use client";
+
 import { useState } from "react";
+import { Avatar, Box, IconButton, Paper, Tooltip, Typography } from "@mui/material";
+import PersonIcon from "@mui/icons-material/Person";
+import SmartToyIcon from "@mui/icons-material/SmartToy";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import CheckIcon from "@mui/icons-material/Check";
 import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
@@ -21,13 +26,15 @@ function CopyButton({ code }: { code: string }) {
   }
 
   return (
-    <button
-      onClick={handleCopy}
-      className="absolute top-2 right-2 p-1.5 rounded-md bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white transition-colors"
-      title="Copiar código"
-    >
-      {copied ? <Check size={13} /> : <Copy size={13} />}
-    </button>
+    <Tooltip title={copied ? "Copiado!" : "Copiar código"}>
+      <IconButton
+        size="small"
+        onClick={handleCopy}
+        sx={{ position: "absolute", top: 6, right: 6, color: "grey.300", bgcolor: "grey.800", "&:hover": { bgcolor: "grey.700" } }}
+      >
+        {copied ? <CheckIcon sx={{ fontSize: 14 }} /> : <ContentCopyIcon sx={{ fontSize: 14 }} />}
+      </IconButton>
+    </Tooltip>
   );
 }
 
@@ -35,76 +42,99 @@ export function MessageBubble({ message }: Props) {
   const isUser = message.role === "user";
 
   return (
-    <div className={clsx("flex", isUser ? "justify-end" : "justify-start")}>
-      <div
-        className={clsx(
-          "max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed",
-          isUser
-            ? "bg-blue-600 text-white rounded-br-sm"
-            : "bg-gray-100 text-gray-800 rounded-bl-sm"
-        )}
+    <Box sx={{ display: "flex", justifyContent: isUser ? "flex-end" : "flex-start", gap: 1, alignItems: "flex-end" }}>
+      {!isUser && (
+        <Avatar sx={{ width: 28, height: 28, bgcolor: "primary.main" }}>
+          <SmartToyIcon sx={{ fontSize: 16 }} />
+        </Avatar>
+      )}
+      <Paper
+        elevation={2}
+        sx={{
+          maxWidth: "75%",
+          px: 2,
+          py: 1.25,
+          borderRadius: 3,
+          ...(isUser
+            ? { bgcolor: "primary.main", color: "primary.contrastText", borderBottomRightRadius: 4 }
+            : { bgcolor: "background.paper", borderBottomLeftRadius: 4 }),
+        }}
       >
         {isUser ? (
-          <p className="whitespace-pre-wrap">{message.content}</p>
-        ) : (
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            components={{
-              code({ className, children, ...props }) {
-                const match = /language-(\w+)/.exec(className ?? "");
-                const code = String(children).replace(/\n$/, "");
-                const isBlock = !!match || code.includes("\n");
-
-                if (isBlock) {
-                  return (
-                    <div className="relative my-2 rounded-lg overflow-hidden text-xs">
-                      <CopyButton code={code} />
-                      <SyntaxHighlighter
-                        style={oneDark}
-                        language={match?.[1] ?? "text"}
-                        PreTag="div"
-                        customStyle={{ margin: 0, borderRadius: "0.5rem", paddingTop: "2rem" }}
-                      >
-                        {code}
-                      </SyntaxHighlighter>
-                    </div>
-                  );
-                }
-
-                return (
-                  <code
-                    className="bg-gray-200 text-gray-800 px-1.5 py-0.5 rounded text-xs font-mono"
-                    {...props}
-                  >
-                    {children}
-                  </code>
-                );
-              },
-              p({ children }) {
-                return <p className="mb-2 last:mb-0">{children}</p>;
-              },
-              ul({ children }) {
-                return <ul className="list-disc list-inside mb-2 space-y-0.5">{children}</ul>;
-              },
-              ol({ children }) {
-                return <ol className="list-decimal list-inside mb-2 space-y-0.5">{children}</ol>;
-              },
-              strong({ children }) {
-                return <strong className="font-semibold">{children}</strong>;
-              },
-              a({ href, children }) {
-                return (
-                  <a href={href} target="_blank" rel="noopener noreferrer" className="underline hover:opacity-80">
-                    {children}
-                  </a>
-                );
-              },
-            }}
-          >
+          <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
             {message.content}
-          </ReactMarkdown>
+          </Typography>
+        ) : (
+          <Box sx={{ fontSize: 14, lineHeight: 1.6 }}>
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                code({ className, children, ...props }) {
+                  const match = /language-(\w+)/.exec(className ?? "");
+                  const code = String(children).replace(/\n$/, "");
+                  const isBlock = !!match || code.includes("\n");
+
+                  if (isBlock) {
+                    return (
+                      <Box sx={{ position: "relative", my: 1, borderRadius: 2, overflow: "hidden", fontSize: 12 }}>
+                        <CopyButton code={code} />
+                        <SyntaxHighlighter
+                          style={oneDark}
+                          language={match?.[1] ?? "text"}
+                          PreTag="div"
+                          customStyle={{ margin: 0, borderRadius: "0.5rem", paddingTop: "2rem" }}
+                        >
+                          {code}
+                        </SyntaxHighlighter>
+                      </Box>
+                    );
+                  }
+
+                  return (
+                    <Box
+                      component="code"
+                      sx={{ bgcolor: "grey.200", px: 0.75, py: 0.25, borderRadius: 1, fontSize: 12, fontFamily: "monospace" }}
+                      {...props}
+                    >
+                      {children}
+                    </Box>
+                  );
+                },
+                p({ children }) {
+                  return (
+                    <Typography variant="body2" component="p" sx={{ mb: 1, "&:last-child": { mb: 0 } }}>
+                      {children}
+                    </Typography>
+                  );
+                },
+                ul({ children }) {
+                  return <Box component="ul" sx={{ listStyle: "disc", pl: 2.5, mb: 1 }}>{children}</Box>;
+                },
+                ol({ children }) {
+                  return <Box component="ol" sx={{ listStyle: "decimal", pl: 2.5, mb: 1 }}>{children}</Box>;
+                },
+                strong({ children }) {
+                  return <Box component="strong" sx={{ fontWeight: 600 }}>{children}</Box>;
+                },
+                a({ href, children }) {
+                  return (
+                    <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: "inherit" }}>
+                      {children}
+                    </a>
+                  );
+                },
+              }}
+            >
+              {message.content}
+            </ReactMarkdown>
+          </Box>
         )}
-      </div>
-    </div>
+      </Paper>
+      {isUser && (
+        <Avatar sx={{ width: 28, height: 28, bgcolor: "grey.400" }}>
+          <PersonIcon sx={{ fontSize: 16 }} />
+        </Avatar>
+      )}
+    </Box>
   );
 }

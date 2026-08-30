@@ -1,10 +1,13 @@
+using System.Diagnostics;
 using System.Text;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Options;
-using OpenChatAgents.Api.Agents;
+using OpenChatAgents.Infrastructure.Agents;
 using OpenChatAgents.Api.Dtos;
-using OpenChatAgents.Api.Options;
+using OpenChatAgents.Infrastructure.Options;
+using OpenChatAgents.Infrastructure.Telemetry;
 using OpenChatAgents.Api.Repositories;
+using Models = OpenChatAgents.Infrastructure.Models;
 
 namespace OpenChatAgents.Api.Services;
 
@@ -15,6 +18,7 @@ public class ChatService(
     SessionService sessionService,
     ChatAgentFactory chatAgentFactory,
     ModerationService moderation,
+    KbRetrievalService kbRetrieval,
     IOptions<AppOptions> appOptions)
 {
     private const string DefaultSystemPrompt = """
@@ -26,15 +30,30 @@ public class ChatService(
         - Se não souber a resposta, diga que não sabe ao invés de inventar.
         """;
 
-    public async IAsyncEnumerable<SseEvent> StreamMessageAsync(Guid sessionId, string userInput)
+    public async IAsyncEnumerable<SseEvent> StreamMessageAsync(Guid sessionId, string userInput, Guid userId)
     {
+        // Tags reconhecidas pelo Langfuse para agrupar traces nas telas de Sessions/Users.
+        // Marcadas no span raiz (o da requisição HTTP, instrumentado pelo AddAspNetCoreInstrumentation)
+        // para que todo o restante da trace herde a associação.
+        Activity.Current?.SetTag("langfuse.session.id", sessionId.ToString());
+        Activity.Current?.SetTag("langfuse.user.id", userId.ToString());
+
+        using var activity = AppActivitySource.Source.StartActivity("chat.stream_message");
+        activity?.SetTag("chat.session_id", sessionId);
+        activity?.SetTag("langfuse.session.id", sessionId.ToString());
+        activity?.SetTag("langfuse.user.id", userId.ToString());
+
         var session = await sessionService.GetSessionAsync(sessionId);
+        activity?.SetTag("chat.agent_name", session.Agent?.Name ?? "default");
 
         var userMessage = await messageRepo.CreateAsync(sessionId, Models.MessageRole.User, userInput);
         yield return new SseEvent("user_message", MessageResponse.FromEntity(userMessage));
 
         string fullContent;
-        if (moderation.ContainsProfanity(userInput))
+        var blocked = moderation.ContainsProfanity(userInput);
+        activity?.SetTag("chat.moderation_blocked", blocked);
+
+        if (blocked)
         {
             fullContent = moderation.GetViolationResponse();
             yield return new SseEvent("chunk", new { content = fullContent });
@@ -51,6 +70,26 @@ public class ChatService(
             };
 
             var messages = await BuildMessagesAsync(sessionId);
+
+            var knowledgeBases = (session.Agent?.KnowledgeBaseLinks ?? [])
+                .Select(l => l.KnowledgeBase)
+                .Where(kb => kb is not null)
+                .Select(kb => kb!)
+                .ToList();
+
+            string? retrievedContext;
+            using (var retrievalActivity = AppActivitySource.Source.StartActivity("chat.kb_retrieval"))
+            {
+                retrievalActivity?.SetTag("chat.kb_count", knowledgeBases.Count);
+                retrievalActivity?.SetTag("langfuse.session.id", sessionId.ToString());
+                retrievalActivity?.SetTag("langfuse.user.id", userId.ToString());
+                retrievedContext = await kbRetrieval.BuildContextAsync(knowledgeBases, userInput);
+                retrievalActivity?.SetTag("chat.kb_context_found", retrievedContext is not null);
+            }
+
+            if (retrievedContext is not null)
+                messages.Insert(0, new ChatMessage(ChatRole.System, retrievedContext));
+
             var sb = new StringBuilder();
             await foreach (var token in chatAgentFactory.StreamAsync(effectiveAgent, messages))
             {

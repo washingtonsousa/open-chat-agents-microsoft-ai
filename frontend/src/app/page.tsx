@@ -1,18 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Box, Typography } from "@mui/material";
 import { agentApi, sessionApi } from "@/services/api";
+import { AuthGuard } from "@/components/auth/AuthGuard";
 import { AgentModal } from "@/components/agent/AgentModal";
 import { ChatWindow } from "@/components/chat/ChatWindow";
 import { SessionSidebar } from "@/components/chat/SessionSidebar";
 import { NewSessionModal } from "@/components/session/NewSessionModal";
 import type { Agent, Session } from "@/types";
 
-export default function Home() {
+function HomeContent() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [showAgentModal, setShowAgentModal] = useState(false);
+  const [editingAgent, setEditingAgent] = useState<Agent | undefined>(undefined);
   const [showSessionModal, setShowSessionModal] = useState(false);
 
   useEffect(() => {
@@ -23,9 +26,18 @@ export default function Home() {
     });
   }, []);
 
-  function handleAgentCreated(agent: Agent) {
-    setAgents((prev) => [agent, ...prev]);
+  function handleAgentSaved(agent: Agent) {
+    setAgents((prev) => {
+      const exists = prev.some((a) => a.id === agent.id);
+      return exists ? prev.map((a) => (a.id === agent.id ? agent : a)) : [agent, ...prev];
+    });
     setShowAgentModal(false);
+    setEditingAgent(undefined);
+  }
+
+  function handleEditAgent(agent: Agent) {
+    setEditingAgent(agent);
+    setShowAgentModal(true);
   }
 
   function handleSessionCreated(session: Session) {
@@ -49,33 +61,48 @@ export default function Home() {
   }
 
   return (
-    <div className="flex h-full">
+    <Box sx={{ display: "flex", height: "100%" }}>
       <SessionSidebar
         sessions={sessions}
         agents={agents}
         activeSessionId={activeId}
         onSelect={setActiveId}
         onNewSession={() => setShowSessionModal(true)}
-        onNewAgent={() => setShowAgentModal(true)}
+        onNewAgent={() => {
+          setEditingAgent(undefined);
+          setShowAgentModal(true);
+        }}
+        onEditAgent={handleEditAgent}
         onDeleteSession={handleDeleteSession}
         onDeleteAgent={handleDeleteAgent}
       />
 
-      <main className="flex-1 flex flex-col bg-white overflow-hidden">
+      <Box component="main" sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         {activeId ? (
           <ChatWindow sessionId={activeId} />
         ) : (
-          <div className="flex-1 flex items-center justify-center text-gray-400">
-            <div className="text-center">
-              <p className="text-lg font-medium">Nenhuma conversa selecionada</p>
-              <p className="text-sm mt-1">Crie um agente e inicie uma conversa</p>
-            </div>
-          </div>
+          <Box sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" }}>
+            <Box>
+              <Typography variant="h6" color="text.secondary">
+                Nenhuma conversa selecionada
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Crie um agente e inicie uma conversa
+              </Typography>
+            </Box>
+          </Box>
         )}
-      </main>
+      </Box>
 
       {showAgentModal && (
-        <AgentModal onCreated={handleAgentCreated} onClose={() => setShowAgentModal(false)} />
+        <AgentModal
+          agent={editingAgent}
+          onSaved={handleAgentSaved}
+          onClose={() => {
+            setShowAgentModal(false);
+            setEditingAgent(undefined);
+          }}
+        />
       )}
 
       {showSessionModal && (
@@ -85,6 +112,14 @@ export default function Home() {
           onClose={() => setShowSessionModal(false)}
         />
       )}
-    </div>
+    </Box>
+  );
+}
+
+export default function Home() {
+  return (
+    <AuthGuard>
+      <HomeContent />
+    </AuthGuard>
   );
 }

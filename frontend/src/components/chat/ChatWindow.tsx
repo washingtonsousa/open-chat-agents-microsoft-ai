@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Alert, Avatar, Box, Paper, Typography } from "@mui/material";
+import SmartToyIcon from "@mui/icons-material/SmartToy";
 import { chatApi } from "@/services/api";
 import type { Message } from "@/types";
 import { ChatInput } from "./ChatInput";
@@ -56,30 +58,45 @@ export function ChatWindow({ sessionId }: Props) {
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
+    <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      <Box sx={{ flex: 1, overflowY: "auto", px: 3, py: 3, display: "flex", flexDirection: "column", gap: 1.5 }}>
         {messages.length === 0 && !loading && (
-          <p className="text-center text-gray-400 text-sm mt-10">
+          <Typography align="center" color="text.secondary" variant="body2" sx={{ mt: 8 }}>
             Nenhuma mensagem ainda. Diga olá!
-          </p>
+          </Typography>
         )}
         {messages.map((m) => (
           <MessageBubble key={m.id} message={m} />
         ))}
         {streamingContent !== null && (
-          <div className="flex justify-start">
-            <div className="max-w-[75%] rounded-2xl rounded-bl-sm px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap bg-gray-100 text-gray-800">
-              {streamingContent}
-              <span className="inline-block w-2 h-4 ml-0.5 bg-gray-400 animate-pulse align-middle" />
-            </div>
-          </div>
+          <Box sx={{ display: "flex", justifyContent: "flex-start", gap: 1, alignItems: "flex-end" }}>
+            <Avatar sx={{ width: 28, height: 28, bgcolor: "primary.main" }}>
+              <SmartToyIcon sx={{ fontSize: 16 }} />
+            </Avatar>
+            <Paper elevation={2} sx={{ maxWidth: "75%", px: 2, py: 1.25, borderRadius: 3, borderBottomLeftRadius: 4 }}>
+              <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
+                {streamingContent}
+                <Box
+                  component="span"
+                  sx={{
+                    display: "inline-block",
+                    width: 6,
+                    height: 14,
+                    ml: 0.5,
+                    bgcolor: "grey.400",
+                    verticalAlign: "middle",
+                    animation: "blink 1s step-start infinite",
+                    "@keyframes blink": { "50%": { opacity: 0 } },
+                  }}
+                />
+              </Typography>
+            </Paper>
+          </Box>
         )}
-        {error && (
-          <p className="text-center text-red-500 text-sm">{error}</p>
-        )}
+        {error && <Alert severity="error">{error}</Alert>}
         <div ref={bottomRef} />
-      </div>
+      </Box>
       <ChatInput onSend={handleSend} disabled={loading} />
-    </div>
+    </Box>
   );
 }

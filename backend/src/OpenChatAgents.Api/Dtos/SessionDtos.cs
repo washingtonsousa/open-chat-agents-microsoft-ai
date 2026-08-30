@@ -1,3 +1,5 @@
+using Models = OpenChatAgents.Infrastructure.Models;
+
 namespace OpenChatAgents.Api.Dtos;
 
 public class SessionCreate

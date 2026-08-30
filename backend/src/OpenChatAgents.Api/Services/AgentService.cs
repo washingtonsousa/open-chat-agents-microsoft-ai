@@ -1,11 +1,12 @@
 using OpenChatAgents.Api.Dtos;
 using OpenChatAgents.Api.Repositories;
+using Models = OpenChatAgents.Infrastructure.Models;
 
 namespace OpenChatAgents.Api.Services;
 
 public class AgentService(AgentRepository repo)
 {
-    public async Task<Models.Agent> CreateAgentAsync(AgentCreate payload)
+    public async Task<Models.Agent> CreateAgentAsync(AgentCreate payload, Guid createdByUserId)
     {
         var existing = await repo.GetByNameAsync(payload.Name.Trim());
         if (existing is not null)
@@ -17,7 +18,9 @@ public class AgentService(AgentRepository repo)
             payload.LlmModel,
             payload.Temperature,
             payload.MaxTokens,
-            payload.SystemPrompt);
+            payload.SystemPrompt,
+            createdByUserId,
+            payload.KnowledgeBaseIds);
     }
 
     public async Task<Models.Agent> GetAgentAsync(Guid agentId)

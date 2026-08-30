@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using OpenChatAgents.Api.Dtos;
 using OpenChatAgents.Api.Services;
@@ -11,7 +12,8 @@ public class AgentsController(AgentService service) : ControllerBase
     [HttpPost]
     public async Task<ActionResult<AgentResponse>> Create([FromBody] AgentCreate payload)
     {
-        var agent = await service.CreateAgentAsync(payload);
+        var createdByUserId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub")!);
+        var agent = await service.CreateAgentAsync(payload, createdByUserId);
         return StatusCode(StatusCodes.Status201Created, AgentResponse.FromEntity(agent));
     }
 

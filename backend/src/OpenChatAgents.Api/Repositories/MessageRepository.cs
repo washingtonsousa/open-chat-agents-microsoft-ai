@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
-using OpenChatAgents.Api.Data;
-using OpenChatAgents.Api.Models;
+using OpenChatAgents.Infrastructure.Data;
+using OpenChatAgents.Infrastructure.Models;
 
 namespace OpenChatAgents.Api.Repositories;
 

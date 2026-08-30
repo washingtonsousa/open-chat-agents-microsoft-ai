@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
@@ -17,9 +18,11 @@ public class ChatController(ChatService service, JsonSerializerOptions jsonOptio
         Response.Headers.CacheControl = "no-cache";
         Response.Headers["X-Accel-Buffering"] = "no";
 
+        var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub")!);
+
         try
         {
-            await foreach (var evt in service.StreamMessageAsync(payload.SessionId, payload.Message).WithCancellation(cancellationToken))
+            await foreach (var evt in service.StreamMessageAsync(payload.SessionId, payload.Message, userId).WithCancellation(cancellationToken))
             {
                 await WriteSseAsync(evt.Event, evt.Data, cancellationToken);
             }

@@ -3,20 +3,48 @@ import type {
   AgentCreate,
   AgentListResponse,
   ChatHistoryResponse,
+  KbDocument,
+  KbDocumentListResponse,
+  KnowledgeBase,
+  KnowledgeBaseCreate,
+  KnowledgeBaseListResponse,
+  LoginResponse,
   Message,
   ModelsResponse,
   Session,
   SessionListResponse,
+  User,
+  UserCreate,
+  UserListResponse,
 } from "@/types";
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8090";
 const API = `${BASE_URL}/api/v1`;
+const TOKEN_KEY = "open_chat_agents_token";
+
+export const authStorage = {
+  getToken: () => (typeof window === "undefined" ? null : localStorage.getItem(TOKEN_KEY)),
+  setToken: (token: string) => localStorage.setItem(TOKEN_KEY, token),
+  clearToken: () => localStorage.removeItem(TOKEN_KEY),
+};
+
+function authHeaders(): Record<string, string> {
+  const token = authStorage.getToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API}${path}`, {
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     ...init,
   });
+
+  if (res.status === 401) {
+    authStorage.clearToken();
+    if (typeof window !== "undefined") window.location.href = "/login";
+    throw new Error("Sessão expirada. Faça login novamente.");
+  }
+
   if (!res.ok) {
     const error = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(error.detail ?? "Erro na requisição");
@@ -24,6 +52,31 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
 }
+
+export const authApi = {
+  login: (username: string, password: string) =>
+    request<LoginResponse>("/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ username, password }),
+    }),
+
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request<void>("/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+    }),
+
+  me: () => request<User>("/auth/me"),
+};
+
+export const userApi = {
+  create: (payload: UserCreate) =>
+    request<User>("/users", { method: "POST", body: JSON.stringify(payload) }),
+
+  list: () => request<UserListResponse>("/users"),
+
+  delete: (id: string) => request<void>(`/users/${id}`, { method: "DELETE" }),
+};
 
 export const sessionApi = {
   create: (title = "Nova conversa", agent_id: string | null = null) =>
@@ -45,6 +98,12 @@ export const agentApi = {
       body: JSON.stringify(payload),
     }),
 
+  update: (id: string, payload: Partial<AgentCreate>) =>
+    request<Agent>(`/agents/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+
   list: () => request<AgentListResponse>("/agents/"),
 
   delete: (id: string) =>
@@ -54,6 +113,38 @@ export const agentApi = {
 export const modelsApi = {
   listOllama: () => request<ModelsResponse>("/models/ollama"),
   listBedrock: () => request<ModelsResponse>("/models/bedrock"),
+};
+
+export const knowledgeBaseApi = {
+  create: (payload: KnowledgeBaseCreate) =>
+    request<KnowledgeBase>("/knowledge-bases", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  list: () => request<KnowledgeBaseListResponse>("/knowledge-bases"),
+
+  get: (id: string) => request<KnowledgeBase>(`/knowledge-bases/${id}`),
+
+  delete: (id: string) => request<void>(`/knowledge-bases/${id}`, { method: "DELETE" }),
+
+  uploadDocument: async (id: string, file: File): Promise<KbDocument> => {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch(`${API}/knowledge-bases/${id}/documents`, {
+      method: "POST",
+      headers: { ...authHeaders() },
+      body: form,
+    });
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(error.detail ?? "Erro no upload");
+    }
+    return res.json() as Promise<KbDocument>;
+  },
+
+  listDocuments: (id: string) =>
+    request<KbDocumentListResponse>(`/knowledge-bases/${id}/documents`),
 };
 
 interface StreamCallbacks {
@@ -66,7 +157,7 @@ export const chatApi = {
   stream: async (session_id: string, message: string, callbacks: StreamCallbacks) => {
     const res = await fetch(`${API}/chat/stream`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify({ session_id, message }),
     });
 

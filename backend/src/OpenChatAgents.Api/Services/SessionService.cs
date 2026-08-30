@@ -1,4 +1,5 @@
 using OpenChatAgents.Api.Repositories;
+using Models = OpenChatAgents.Infrastructure.Models;
 
 namespace OpenChatAgents.Api.Services;
 

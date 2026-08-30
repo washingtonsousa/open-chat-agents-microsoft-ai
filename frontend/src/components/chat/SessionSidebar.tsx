@@ -1,8 +1,37 @@
 "use client";
 
-import clsx from "clsx";
-import { Bot, Plus, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import {
+  Avatar,
+  Box,
+  Chip,
+  Divider,
+  Drawer,
+  Fab,
+  IconButton,
+  List,
+  ListItemAvatar,
+  ListItemButton,
+  ListItemText,
+  ListSubheader,
+  Toolbar,
+  Tooltip,
+  Typography,
+} from "@mui/material";
+import SmartToyIcon from "@mui/icons-material/SmartToy";
+import AddIcon from "@mui/icons-material/Add";
+import EditIcon from "@mui/icons-material/Edit";
+import DeleteIcon from "@mui/icons-material/Delete";
+import StorageIcon from "@mui/icons-material/Storage";
+import GroupIcon from "@mui/icons-material/Group";
+import LogoutIcon from "@mui/icons-material/Logout";
+import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutlineOutlined";
+import { useCurrentUser } from "@/components/auth/AuthGuard";
+import { authStorage } from "@/services/api";
 import type { Agent, Session } from "@/types";
+
+export const DRAWER_WIDTH = 288;
 
 interface Props {
   sessions: Session[];
@@ -11,6 +40,7 @@ interface Props {
   onSelect: (id: string) => void;
   onNewSession: () => void;
   onNewAgent: () => void;
+  onEditAgent: (agent: Agent) => void;
   onDeleteSession: (id: string) => void;
   onDeleteAgent: (id: string) => void;
 }
@@ -22,108 +52,183 @@ export function SessionSidebar({
   onSelect,
   onNewSession,
   onNewAgent,
+  onEditAgent,
   onDeleteSession,
   onDeleteAgent,
 }: Props) {
+  const user = useCurrentUser();
+  const router = useRouter();
+
+  function handleLogout() {
+    authStorage.clearToken();
+    router.push("/login");
+  }
+
   return (
-    <aside className="flex flex-col w-64 h-full bg-gray-900 text-white overflow-hidden">
-      <div className="p-4 border-b border-gray-700">
-        <h1 className="text-lg font-semibold">open-chat-agents</h1>
-      </div>
+    <Drawer
+      variant="permanent"
+      sx={{
+        width: DRAWER_WIDTH,
+        flexShrink: 0,
+        [`& .MuiDrawer-paper`]: {
+          width: DRAWER_WIDTH,
+          boxSizing: "border-box",
+          bgcolor: "background.paper",
+        },
+      }}
+    >
+      <Toolbar sx={{ px: 2.5 }}>
+        <Typography variant="h6" sx={{ fontWeight: 600, color: "primary.main" }}>
+          Open Chat Agents
+        </Typography>
+      </Toolbar>
+      <Divider />
 
-      <div className="flex-1 overflow-y-auto">
-        {/* Agents section */}
-        <div className="px-3 pt-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">
+      <Box sx={{ flex: 1, overflowY: "auto" }}>
+        <List
+          dense
+          subheader={
+            <ListSubheader component="div" sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", pr: 1 }}>
               Agentes
-            </span>
-            <button
-              onClick={onNewAgent}
-              className="text-gray-400 hover:text-white transition-colors"
-              title="Novo agente"
-            >
-              <Plus size={14} />
-            </button>
-          </div>
-
+              <Tooltip title="Novo agente">
+                <IconButton size="small" onClick={onNewAgent}>
+                  <AddIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </ListSubheader>
+          }
+        >
           {agents.length === 0 ? (
-            <p className="text-xs text-gray-500 px-1 py-1">Nenhum agente criado.</p>
+            <Typography variant="caption" color="text.secondary" sx={{ px: 2 }}>
+              Nenhum agente criado.
+            </Typography>
           ) : (
-            <div className="space-y-0.5">
-              {agents.map((a) => (
-                <div
-                  key={a.id}
-                  className="group flex items-center justify-between rounded-lg px-2 py-1.5 text-sm hover:bg-gray-800 transition-colors"
-                >
-                  <div className="flex items-center gap-2 truncate">
-                    <Bot size={13} className="text-blue-400 shrink-0" />
-                    <div className="truncate">
-                      <p className="truncate text-xs font-medium">{a.name}</p>
-                      <p className="truncate text-xs text-gray-400">{a.llm_model}</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => onDeleteAgent(a.id)}
-                    className="opacity-0 group-hover:opacity-100 ml-1 text-gray-400 hover:text-red-400 transition-opacity shrink-0"
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                </div>
-              ))}
-            </div>
+            agents.map((a) => (
+              <ListItemButton
+                key={a.id}
+                sx={{ "&:hover .agent-actions": { opacity: 1 } }}
+              >
+                <ListItemAvatar sx={{ minWidth: 40 }}>
+                  <Avatar sx={{ width: 30, height: 30, bgcolor: "primary.light" }}>
+                    <SmartToyIcon fontSize="small" />
+                  </Avatar>
+                </ListItemAvatar>
+                <ListItemText
+                  primary={a.name}
+                  secondary={a.llm_model}
+                  slotProps={{
+                    primary: { noWrap: true, sx: { fontSize: 13, fontWeight: 500 } },
+                    secondary: { noWrap: true, sx: { fontSize: 11 } },
+                  }}
+                />
+                <Box className="agent-actions" sx={{ display: "flex", opacity: 0, transition: "opacity .15s" }}>
+                  <IconButton size="small" onClick={() => onEditAgent(a)} title="Editar agente">
+                    <EditIcon sx={{ fontSize: 15 }} />
+                  </IconButton>
+                  <IconButton size="small" onClick={() => onDeleteAgent(a.id)} title="Excluir agente" color="error">
+                    <DeleteIcon sx={{ fontSize: 15 }} />
+                  </IconButton>
+                </Box>
+              </ListItemButton>
+            ))
           )}
-        </div>
+        </List>
 
-        {/* Sessions section */}
-        <div className="px-3 pt-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">
+        <Divider sx={{ my: 1 }} />
+
+        <List
+          dense
+          subheader={
+            <ListSubheader component="div" sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", pr: 1 }}>
               Conversas
-            </span>
-            <button
-              onClick={onNewSession}
-              className="text-gray-400 hover:text-white transition-colors"
-              title="Nova conversa"
-            >
-              <Plus size={14} />
-            </button>
-          </div>
-
+              <Tooltip title="Nova conversa">
+                <IconButton size="small" onClick={onNewSession}>
+                  <AddIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </ListSubheader>
+          }
+        >
           {sessions.length === 0 ? (
-            <p className="text-xs text-gray-500 px-1 py-1">Nenhuma conversa ainda.</p>
+            <Typography variant="caption" color="text.secondary" sx={{ px: 2 }}>
+              Nenhuma conversa ainda.
+            </Typography>
           ) : (
-            <div className="space-y-0.5">
-              {sessions.map((s) => (
-                <div
-                  key={s.id}
-                  className={clsx(
-                    "group flex items-center justify-between rounded-lg px-2 py-1.5 cursor-pointer transition-colors",
-                    s.id === activeSessionId ? "bg-gray-700" : "hover:bg-gray-800"
-                  )}
-                  onClick={() => onSelect(s.id)}
+            sessions.map((s) => (
+              <ListItemButton
+                key={s.id}
+                selected={s.id === activeSessionId}
+                onClick={() => onSelect(s.id)}
+                sx={{ "&:hover .session-actions": { opacity: 1 } }}
+              >
+                <ListItemAvatar sx={{ minWidth: 40 }}>
+                  <Avatar sx={{ width: 30, height: 30 }}>
+                    <ChatBubbleOutlineIcon fontSize="small" />
+                  </Avatar>
+                </ListItemAvatar>
+                <ListItemText
+                  primary={s.title}
+                  secondary={s.agent?.name}
+                  slotProps={{
+                    primary: { noWrap: true, sx: { fontSize: 13, fontWeight: 500 } },
+                    secondary: { noWrap: true, sx: { fontSize: 11 } },
+                  }}
+                />
+                <IconButton
+                  className="session-actions"
+                  size="small"
+                  color="error"
+                  sx={{ opacity: 0, transition: "opacity .15s" }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDeleteSession(s.id);
+                  }}
                 >
-                  <div className="truncate flex-1">
-                    <p className="truncate text-xs font-medium">{s.title}</p>
-                    {s.agent && (
-                      <p className="truncate text-xs text-gray-400">{s.agent.name}</p>
-                    )}
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDeleteSession(s.id);
-                    }}
-                    className="opacity-0 group-hover:opacity-100 ml-1 text-gray-400 hover:text-red-400 transition-opacity shrink-0"
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                </div>
-              ))}
-            </div>
+                  <DeleteIcon sx={{ fontSize: 15 }} />
+                </IconButton>
+              </ListItemButton>
+            ))
           )}
-        </div>
-      </div>
-    </aside>
+        </List>
+      </Box>
+
+      <Divider />
+      <List dense>
+        <ListItemButton component={Link} href="/knowledge-bases">
+          <ListItemAvatar sx={{ minWidth: 36 }}>
+            <StorageIcon fontSize="small" color="action" />
+          </ListItemAvatar>
+          <ListItemText primary="Bases de conhecimento" slotProps={{ primary: { sx: { fontSize: 13 } } }} />
+        </ListItemButton>
+        {user?.is_admin && (
+          <ListItemButton component={Link} href="/admin/users">
+            <ListItemAvatar sx={{ minWidth: 36 }}>
+              <GroupIcon fontSize="small" color="action" />
+            </ListItemAvatar>
+            <ListItemText primary="Usuários" slotProps={{ primary: { sx: { fontSize: 13 } } }} />
+          </ListItemButton>
+        )}
+        <ListItemButton onClick={handleLogout}>
+          <ListItemAvatar sx={{ minWidth: 36 }}>
+            <LogoutIcon fontSize="small" color="action" />
+          </ListItemAvatar>
+          <ListItemText
+            primary={user?.username ?? "Sair"}
+            slotProps={{ primary: { sx: { fontSize: 13 } } }}
+          />
+          {user?.is_admin && <Chip label="admin" size="small" color="secondary" sx={{ height: 18, fontSize: 10 }} />}
+        </ListItemButton>
+      </List>
+
+      <Fab
+        color="primary"
+        size="medium"
+        onClick={onNewSession}
+        sx={{ position: "absolute", bottom: 88, right: 20 }}
+        title="Nova conversa"
+      >
+        <AddIcon />
+      </Fab>
+    </Drawer>
   );
 }

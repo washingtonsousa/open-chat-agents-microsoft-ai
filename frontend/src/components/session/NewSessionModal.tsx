@@ -1,7 +1,18 @@
 "use client";
 
-import { X } from "lucide-react";
 import { useState } from "react";
+import {
+  Alert,
+  Button,
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  IconButton,
+  MenuItem,
+  Stack,
+  TextField,
+} from "@mui/material";
+import CloseIcon from "@mui/icons-material/Close";
 import type { Agent, Session } from "@/types";
 import { sessionApi } from "@/services/api";
 
@@ -32,66 +43,52 @@ export function NewSessionModal({ agents, onCreated, onClose }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 p-6">
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="text-lg font-semibold text-gray-900">Nova conversa</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
-            <X size={20} />
-          </button>
-        </div>
+    <Dialog open onClose={onClose} fullWidth maxWidth="xs">
+      <DialogTitle sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        Nova conversa
+        <IconButton onClick={onClose} size="small">
+          <CloseIcon fontSize="small" />
+        </IconButton>
+      </DialogTitle>
+      <DialogContent dividers>
+        <Stack component="form" onSubmit={handleSubmit} spacing={2.5} sx={{ pt: 0.5 }}>
+          <TextField
+            label="Título"
+            fullWidth
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Título</label>
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Agente</label>
-            {agents.length === 0 ? (
-              <p className="text-sm text-amber-600">
-                Nenhum agente criado. Crie um agente primeiro.
-              </p>
-            ) : (
-              <select
-                value={selectedAgentId}
-                onChange={(e) => setSelectedAgentId(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {agents.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name} — {a.llm_model}
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
-
-          {error && <p className="text-sm text-red-500">{error}</p>}
-
-          <div className="flex justify-end gap-2 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-100 transition-colors"
+          {agents.length === 0 ? (
+            <Alert severity="warning">Nenhum agente criado. Crie um agente primeiro.</Alert>
+          ) : (
+            <TextField
+              select
+              label="Agente"
+              fullWidth
+              value={selectedAgentId}
+              onChange={(e) => setSelectedAgentId(e.target.value)}
             >
+              {agents.map((a) => (
+                <MenuItem key={a.id} value={a.id}>
+                  {a.name} — {a.llm_model}
+                </MenuItem>
+              ))}
+            </TextField>
+          )}
+
+          {error && <Alert severity="error">{error}</Alert>}
+
+          <Stack direction="row" spacing={1.5} sx={{ justifyContent: "flex-end" }}>
+            <Button onClick={onClose} color="inherit">
               Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={submitting || agents.length === 0}
-              className="px-4 py-2 rounded-lg text-sm bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
-            >
+            </Button>
+            <Button type="submit" variant="contained" disabled={submitting || agents.length === 0}>
               {submitting ? "Criando..." : "Iniciar conversa"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+            </Button>
+          </Stack>
+        </Stack>
+      </DialogContent>
+    </Dialog>
   );
 }

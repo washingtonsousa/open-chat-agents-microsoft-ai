@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Models = OpenChatAgents.Infrastructure.Models;
 
 namespace OpenChatAgents.Api.Dtos;
 

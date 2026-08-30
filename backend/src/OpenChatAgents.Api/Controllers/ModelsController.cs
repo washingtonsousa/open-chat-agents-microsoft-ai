@@ -2,9 +2,9 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
-using OpenChatAgents.Api.Agents;
+using OpenChatAgents.Infrastructure.Agents;
 using OpenChatAgents.Api.Dtos;
-using OpenChatAgents.Api.Options;
+using OpenChatAgents.Infrastructure.Options;
 using OpenChatAgents.Api.Services;
 
 namespace OpenChatAgents.Api.Controllers;
@@ -46,7 +46,10 @@ public class ModelsController(IHttpClientFactory httpClientFactory, IOptions<App
     public async Task<ActionResult<ModelsResponse>> ListBedrock()
     {
         var models = await bedrockCatalog.ListModelsAsync();
-        return Ok(new ModelsResponse { Models = models });
+        return Ok(new ModelsResponse
+        {
+            Models = [.. models.Select(m => new ModelInfo { Name = m.Name, Provider = m.Provider })],
+        });
     }
 
     private class OllamaTagsResponse

@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
-using OpenChatAgents.Api.Data;
-using OpenChatAgents.Api.Models;
+using OpenChatAgents.Infrastructure.Data;
+using OpenChatAgents.Infrastructure.Models;
 
 namespace OpenChatAgents.Api.Repositories;
 
@@ -16,7 +16,7 @@ public class SessionRepository(AppDbContext db)
 
     public Task<Session?> GetByIdAsync(Guid id) =>
         db.Sessions
-            .Include(s => s.Agent)
+            .Include(s => s.Agent).ThenInclude(a => a!.KnowledgeBaseLinks).ThenInclude(l => l.KnowledgeBase)
             .Include(s => s.Messages)
             .FirstOrDefaultAsync(s => s.Id == id);
 

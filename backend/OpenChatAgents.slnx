@@ -1,5 +1,7 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/OpenChatAgents.Api/OpenChatAgents.Api.csproj" />
+    <Project Path="src/OpenChatAgents.Infrastructure/OpenChatAgents.Infrastructure.csproj" />
+    <Project Path="src/OpenChatAgents.Worker/OpenChatAgents.Worker.csproj" />
   </Folder>
 </Solution>
