@@ -1,5 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using OpenChatAgents.Infrastructure.Models;
+using OpenChatAgents.Domain.Models;
 
 namespace OpenChatAgents.Infrastructure.Data;
 

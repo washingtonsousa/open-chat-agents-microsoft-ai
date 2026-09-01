@@ -25,7 +25,7 @@ namespace OpenChatAgents.Infrastructure.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("OpenChatAgents.Infrastructure.Models.Agent", b =>
+            modelBuilder.Entity("OpenChatAgents.Domain.Models.Agent", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -74,7 +74,7 @@ namespace OpenChatAgents.Infrastructure.Migrations
                     b.ToTable("agents", (string)null);
                 });
 
-            modelBuilder.Entity("OpenChatAgents.Infrastructure.Models.Message", b =>
+            modelBuilder.Entity("OpenChatAgents.Domain.Models.Message", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -104,7 +104,7 @@ namespace OpenChatAgents.Infrastructure.Migrations
                     b.ToTable("messages", (string)null);
                 });
 
-            modelBuilder.Entity("OpenChatAgents.Infrastructure.Models.Session", b =>
+            modelBuilder.Entity("OpenChatAgents.Domain.Models.Session", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -135,9 +135,9 @@ namespace OpenChatAgents.Infrastructure.Migrations
                     b.ToTable("sessions", (string)null);
                 });
 
-            modelBuilder.Entity("OpenChatAgents.Infrastructure.Models.Message", b =>
+            modelBuilder.Entity("OpenChatAgents.Domain.Models.Message", b =>
                 {
-                    b.HasOne("OpenChatAgents.Infrastructure.Models.Session", "Session")
+                    b.HasOne("OpenChatAgents.Domain.Models.Session", "Session")
                         .WithMany("Messages")
                         .HasForeignKey("SessionId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -146,9 +146,9 @@ namespace OpenChatAgents.Infrastructure.Migrations
                     b.Navigation("Session");
                 });
 
-            modelBuilder.Entity("OpenChatAgents.Infrastructure.Models.Session", b =>
+            modelBuilder.Entity("OpenChatAgents.Domain.Models.Session", b =>
                 {
-                    b.HasOne("OpenChatAgents.Infrastructure.Models.Agent", "Agent")
+                    b.HasOne("OpenChatAgents.Domain.Models.Agent", "Agent")
                         .WithMany("Sessions")
                         .HasForeignKey("AgentId")
                         .OnDelete(DeleteBehavior.SetNull);
@@ -156,12 +156,12 @@ namespace OpenChatAgents.Infrastructure.Migrations
                     b.Navigation("Agent");
                 });
 
-            modelBuilder.Entity("OpenChatAgents.Infrastructure.Models.Agent", b =>
+            modelBuilder.Entity("OpenChatAgents.Domain.Models.Agent", b =>
                 {
                     b.Navigation("Sessions");
                 });
 
-            modelBuilder.Entity("OpenChatAgents.Infrastructure.Models.Session", b =>
+            modelBuilder.Entity("OpenChatAgents.Domain.Models.Session", b =>
                 {
                     b.Navigation("Messages");
                 });

@@ -1,14 +1,11 @@
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.VectorData;
-using OpenChatAgents.Infrastructure.Models;
+using OpenChatAgents.Domain.Models;
+using OpenChatAgents.Domain.VectorStore;
 
 namespace OpenChatAgents.Infrastructure.VectorStore;
 
-public record KbChunkRecord(Guid Id, Guid KbDocumentId, int ChunkIndex, string Content, ReadOnlyMemory<float> Embedding);
-
-public record KbSearchResult(Guid Id, Guid KbDocumentId, int ChunkIndex, string Content, double Score);
-
-public class KbVectorStore(Microsoft.Extensions.VectorData.VectorStore vectorStore)
+public class KbVectorStore(Microsoft.Extensions.VectorData.VectorStore vectorStore) : IKbVectorStore
 {
     private static VectorStoreCollectionDefinition BuildDefinition(int dimensions) => new()
     {

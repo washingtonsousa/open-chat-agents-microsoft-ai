@@ -23,30 +23,48 @@ Porta em **.NET** do POC [open-chat-agents](../Chat%20Bot%20Com%20Rag%20e%20Fron
 
 ## Arquitetura
 
+O backend segue uma separação em camadas ao estilo DDD — `Domain` no centro, sem dependências externas; `Application` orquestra os casos de uso contra abstrações do `Domain`; `Infrastructure` fornece as implementações concretas (EF Core, Weaviate, MinIO, RabbitMQ, Argon2, Ollama/Bedrock); `Api` e `Worker` são as camadas de apresentação/host que compõem tudo via DI:
+
 ```
 backend/src/
-├── OpenChatAgents.Infrastructure/   Compartilhado entre Api e Worker
-│   ├── Models/        Entidades EF Core (Agent, Session, Message, User,
-│   │                  KnowledgeBase, KbDocument, KbChunkRef, AgentKnowledgeBase)
-│   ├── Data/           AppDbContext + Migrations
-│   ├── Options/         Configuração fortemente tipada
-│   ├── Agents/           ChatAgentFactory, EmbeddingClientFactory, BedrockModelCatalog
-│   ├── Security/          Argon2PasswordHasher
-│   ├── Storage/            MinioObjectStore
-│   ├── Messaging/           RabbitMqConnectionFactory, evento do MinIO
-│   ├── VectorStore/          KbVectorStore (coleção Weaviate dinâmica por KB)
-│   └── Ingestion/              TextExtractor + ChunkingService
-├── OpenChatAgents.Api/       Controllers, Dtos, Services (Auth, KB, Agents, Chat...)
-└── OpenChatAgents.Worker/    BackgroundService que consome a fila e roda a ingestão
+├── OpenChatAgents.Domain/            Sem dependência de infra — só abstrações e regras puras
+│   ├── Models/         Entidades (Agent, Session, Message, User, KnowledgeBase,
+│   │                   KbDocument, KbChunkRef, AgentKnowledgeBase)
+│   ├── Options/          Configuração fortemente tipada (AppOptions e afins)
+│   ├── Repositories/      Interfaces de repositório (IAgentRepository, ISessionRepository...)
+│   ├── Abstractions/       Portas para infraestrutura (IChatAgentFactory, IEmbeddingClientFactory,
+│   │                       IObjectStore, IPasswordHasher, ITextExtractor)
+│   ├── VectorStore/         IKbVectorStore + records de transporte (KbChunkRecord, KbSearchResult)
+│   ├── Services/             Regras de domínio puras (ModerationService, ChunkingService)
+│   └── Telemetry/              AppActivitySource (ActivitySource compartilhado)
+├── OpenChatAgents.Application/     Casos de uso — depende só do Domain
+│   ├── Dtos/            Contratos de entrada/saída (Create/Update/Response, snake_case no wire)
+│   ├── Exceptions/        ApiException (mapeada para status HTTP pelo middleware da Api)
+│   └── Services/            AgentService, SessionService, ChatService, AuthService, UserService,
+│                            KnowledgeBaseService, KbRetrievalService, KbIngestionService
+├── OpenChatAgents.Infrastructure/  Implementações concretas das portas do Domain
+│   ├── Data/            AppDbContext + Migrations
+│   ├── Persistence/       Repositórios EF Core (implementam as interfaces do Domain)
+│   ├── Agents/             ChatAgentFactory, EmbeddingClientFactory, BedrockModelCatalog
+│   ├── Security/             Argon2PasswordHasher
+│   ├── Storage/                MinioObjectStore
+│   ├── Messaging/                RabbitMqConnectionFactory, evento do MinIO
+│   ├── VectorStore/                 KbVectorStore (coleção Weaviate dinâmica por KB)
+│   ├── Ingestion/                     TextExtractor
+│   └── Telemetry/                       TelemetryExtensions (wiring do OpenTelemetry/Langfuse)
+├── OpenChatAgents.Api/       Controllers + Program.cs (composition root)
+└── OpenChatAgents.Worker/    BackgroundService (consome a fila) + Program.cs
 ```
+
+`Domain` não referencia nenhum pacote de infraestrutura (Weaviate/MinIO/RabbitMQ/EF Core/Ollama/Bedrock) — só `Microsoft.Extensions.AI.Abstractions` para os tipos de mensagem/embedding, que são puramente abstrações. `Application` idem, mais `Microsoft.Extensions.Options`/`Logging.Abstractions` e o necessário para emitir JWT. Só `Infrastructure`, `Api` e `Worker` conhecem os SDKs concretos.
 
 ### Chat com retrieval (RAG)
 
 ```
-Browser → POST /api/v1/chat/stream → ChatController → ChatService
-                                          ├── ModerationService     (guarda de profanidade)
-                                          ├── KbRetrievalService     (embed da pergunta + busca vetorial por KB do agente)
-                                          └── ChatAgentFactory        (Microsoft Agent Framework + Ollama/Bedrock)
+Browser → POST /api/v1/chat/stream → ChatController → ChatService (Application)
+                                          ├── ModerationService     (Domain — guarda de profanidade)
+                                          ├── KbRetrievalService     (Application — embed da pergunta + busca vetorial por KB do agente)
+                                          └── IChatAgentFactory        (Infrastructure — Microsoft Agent Framework + Ollama/Bedrock)
                                                   ↓ SSE stream (event: user_message | chunk | done)
 ```
 
@@ -60,8 +78,10 @@ Usuário → POST /knowledge-bases/{id}/documents (upload)
                      ↓ MinIO dispara bucket notification (AMQP) — sem o backend publicar nada
               RabbitMQ (exchange "minio-events") → fila "kb-ingestion"
                      ↓
-OpenChatAgents.Worker: extrai texto (PdfPig/DOCX/texto) → chunking configurável → gera embeddings
-                        → grava no Weaviate (uma coleção por KB) → status=completed/failed
+OpenChatAgents.Worker: KbIngestionBackgroundService (host) delega para
+                        KbIngestionService (Application), que extrai texto (Infrastructure/TextExtractor),
+                        faz chunking (Domain/ChunkingService), gera embeddings e grava no Weaviate
+                        (uma coleção por KB) → status=completed/failed
 ```
 
 O frontend acompanha o status de cada documento (`uploaded → processing → completed/failed`) via polling na tela de Bases de Conhecimento.

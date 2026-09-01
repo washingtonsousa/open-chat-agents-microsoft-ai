@@ -1,15 +1,17 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using OpenChatAgents.Api.Dtos;
-using OpenChatAgents.Api.Repositories;
-using OpenChatAgents.Api.Services;
+using OpenChatAgents.Application.Dtos;
+using OpenChatAgents.Application.Exceptions;
+using OpenChatAgents.Application.Services;
+using OpenChatAgents.Domain.Repositories;
+using Models = OpenChatAgents.Domain.Models;
 
 namespace OpenChatAgents.Api.Controllers;
 
 [ApiController]
 [Route("api/v1/auth")]
-public class AuthController(AuthService authService, UserRepository userRepo) : ControllerBase
+public class AuthController(AuthService authService, IUserRepository userRepo) : ControllerBase
 {
     [HttpPost("login")]
     [AllowAnonymous]
@@ -34,7 +36,7 @@ public class AuthController(AuthService authService, UserRepository userRepo) : 
         return Ok(UserResponse.FromEntity(user));
     }
 
-    private async Task<Infrastructure.Models.User> CurrentUserAsync()
+    private async Task<Models.User> CurrentUserAsync()
     {
         var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub")!);
         var user = await userRepo.GetByIdAsync(userId);

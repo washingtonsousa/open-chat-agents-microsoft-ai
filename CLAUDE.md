@@ -51,23 +51,42 @@ Brings up Postgres, Weaviate, MinIO (+ `minio-init`, a one-shot container that w
 
 ### Solution layout
 
+Five projects, DDD-ish layering. Dependencies point inward: `Api`/`Worker` → `Infrastructure` + `Application` → `Domain`. `Infrastructure` and `Application` never reference each other — both only depend on `Domain`, which has zero infrastructure package references (only `Microsoft.Extensions.AI.Abstractions` for message/embedding types).
+
 ```
 backend/src/
-├── OpenChatAgents.Infrastructure/   shared class library — referenced by both Api and Worker
-│   ├── Models/        EF Core entities (Agent, Session, Message, User, KnowledgeBase, KbDocument, KbChunkRef, AgentKnowledgeBase)
-│   ├── Data/           AppDbContext + Migrations (defined here, not in Api)
-│   ├── Options/         AppOptions and its nested sections (Jwt, Minio, RabbitMq, Weaviate, Argon2, Aws)
-│   ├── Agents/           ChatAgentFactory, EmbeddingClientFactory, BedrockModelCatalog
-│   ├── Security/          Argon2PasswordHasher
-│   ├── Storage/            MinioObjectStore
-│   ├── Messaging/           RabbitMqConnectionFactory, MinioEventNotification (S3-style event DTO)
-│   ├── VectorStore/          KbVectorStore
-│   └── Ingestion/              TextExtractor, ChunkingService
-├── OpenChatAgents.Api/       Controllers → Services → Repositories, Dtos (all snake_case over the wire)
-└── OpenChatAgents.Worker/    single KbIngestionBackgroundService consuming RabbitMQ
+├── OpenChatAgents.Domain/            entities, options POCOs, repository interfaces, infra "ports"
+│   ├── Models/          Agent, Session, Message, User, KnowledgeBase, KbDocument, KbChunkRef, AgentKnowledgeBase
+│   ├── Options/           AppOptions and its nested sections (Jwt, Minio, RabbitMq, Weaviate, Argon2, Aws, Telemetry)
+│   ├── Repositories/        IAgentRepository, ISessionRepository, IMessageRepository, IUserRepository,
+│   │                        IKnowledgeBaseRepository, IKbDocumentRepository
+│   ├── Abstractions/          IChatAgentFactory, IEmbeddingClientFactory, IObjectStore, IPasswordHasher, ITextExtractor
+│   ├── VectorStore/             IKbVectorStore + KbChunkRecord/KbSearchResult
+│   ├── Services/                  ModerationService, ChunkingService (pure, no external deps)
+│   └── Telemetry/                   AppActivitySource
+├── OpenChatAgents.Application/    use-case services — depends only on Domain
+│   ├── Dtos/             wire contracts (Create/Update/Response types, snake_case over the wire)
+│   ├── Exceptions/         ApiException
+│   └── Services/             AgentService, SessionService, ChatService, AuthService, UserService,
+│                             KnowledgeBaseService, KbRetrievalService, KbIngestionService
+├── OpenChatAgents.Infrastructure/  concrete implementations of Domain interfaces
+│   ├── Data/             AppDbContext + Migrations
+│   ├── Persistence/        EF Core repositories (AgentRepository, SessionRepository, ...)
+│   ├── Agents/              ChatAgentFactory, EmbeddingClientFactory, BedrockModelCatalog
+│   ├── Security/              Argon2PasswordHasher
+│   ├── Storage/                  MinioObjectStore
+│   ├── Messaging/                  RabbitMqConnectionFactory, MinioEventNotification (S3-style event DTO)
+│   ├── VectorStore/                   KbVectorStore
+│   ├── Ingestion/                       TextExtractor
+│   └── Telemetry/                         TelemetryExtensions (OTel/Langfuse wiring)
+├── OpenChatAgents.Api/       Controllers + Program.cs (composition root — the only place that binds
+│                             Domain interfaces to Infrastructure implementations via DI)
+└── OpenChatAgents.Worker/    KbIngestionBackgroundService (thin RabbitMQ adapter) + Program.cs
 ```
 
-`Api` and `Worker` both own their own `Repositories`/DI wiring in their respective `Program.cs`, but never duplicate `AppDbContext`, the models, or the factories — those changes always go in `Infrastructure`, and both projects need rebuilding/redeploying together when it changes.
+`KbIngestionBackgroundService` in Worker does no business logic itself — it just parses the MinIO/RabbitMQ notification and calls `KbIngestionService.ProcessDocumentAsync` (Application), which is where extract→chunk→embed→upsert actually lives. This is the one place the layering changed real behavior, not just namespaces: the ingestion workflow used to be entangled with the RabbitMQ consumer loop and a raw `AppDbContext`; now it's a testable Application service behind `IKbDocumentRepository`.
+
+Changing an entity, a repository interface, or an infra port always means touching `Domain`; changing how something is persisted or which SDK is called means touching `Infrastructure`; changing a use case's orchestration means touching `Application`. All five projects need rebuilding/redeploying together when any of them changes — there's no independent versioning between layers.
 
 ### JSON contract
 
@@ -75,14 +94,14 @@ Controllers and the manual SSE writer in `ChatController` both serialize with `J
 
 ### Chat streaming (SSE) and RAG injection
 
-`ChatController.Stream` writes raw `event: X\ndata: {...}\n\n` frames itself (not `IAsyncEnumerable` auto-serialization) so the exact wire format stays under control. `ChatService.StreamMessageAsync`:
-1. persists the user message, runs `ModerationService` (regex profanity filter, short-circuits if triggered),
-2. builds the message history, and if the session's agent has `KnowledgeBaseLinks`, calls `KbRetrievalService.BuildContextAsync` to embed the query, search each KB's Weaviate collection, and prepend the retrieved text as a `ChatRole.System` message,
-3. streams tokens from `ChatAgentFactory.StreamAsync` (Microsoft Agent Framework `AIAgent.RunStreamingAsync`) and persists the assembled assistant message at the end.
+`ChatController.Stream` (Api) writes raw `event: X\ndata: {...}\n\n` frames itself (not `IAsyncEnumerable` auto-serialization) so the exact wire format stays under control. `ChatService.StreamMessageAsync` (Application):
+1. persists the user message, runs `ModerationService` (Domain — regex profanity filter, short-circuits if triggered),
+2. builds the message history, and if the session's agent has `KnowledgeBaseLinks`, calls `KbRetrievalService.BuildContextAsync` (Application) to embed the query, search each KB's Weaviate collection via `IKbVectorStore`, and prepend the retrieved text as a `ChatRole.System` message,
+3. streams tokens from `IChatAgentFactory.StreamAsync` (Domain interface; `ChatAgentFactory` in Infrastructure implements it via the Microsoft Agent Framework's `AIAgent.RunStreamingAsync`) and persists the assembled assistant message at the end.
 
 ### KB ingestion (event-driven, not polled)
 
-Upload (`KnowledgeBasesController` → `KnowledgeBaseService.UploadDocumentAsync`) only creates a `KbDocument` row and PUTs the object to MinIO under `kb/{kbId}/{documentId}/{fileName}` — it does **not** publish anything itself. MinIO's own bucket-notification feature (configured by the `minio-init` container) fires an AMQP event on `s3:ObjectCreated:*` straight into RabbitMQ. `KbIngestionBackgroundService` in `OpenChatAgents.Worker` is the only consumer: it parses the object key back into a `KbDocumentId`, extracts text (`TextExtractor` — PdfPig/DOCX/plain-text by extension), chunks it (`ChunkingService`, size/overlap from the KB), embeds each chunk via `EmbeddingClientFactory`, and upserts into a **per-KB Weaviate collection** named `Kb_{kbId:N}` via `KbVectorStore`. Status transitions (`uploaded → processing → completed/failed`) are the only thing the frontend polls for.
+Upload (`KnowledgeBasesController` → `KnowledgeBaseService.UploadDocumentAsync`, Application) only creates a `KbDocument` row and PUTs the object to MinIO under `kb/{kbId}/{documentId}/{fileName}` — it does **not** publish anything itself. MinIO's own bucket-notification feature (configured by the `minio-init` container) fires an AMQP event on `s3:ObjectCreated:*` straight into RabbitMQ. `KbIngestionBackgroundService` in `OpenChatAgents.Worker` is the only consumer, but it's just a thin adapter: it parses the object key back into a `KbDocumentId` and calls `KbIngestionService.ProcessDocumentAsync` (Application), which extracts text (`ITextExtractor` → Infrastructure's `TextExtractor`, PdfPig/DOCX/plain-text by extension), chunks it (`ChunkingService`, Domain, size/overlap from the KB), embeds each chunk via `IEmbeddingClientFactory`, and upserts into a **per-KB Weaviate collection** named `Kb_{kbId:N}` via `IKbVectorStore`. Status transitions (`uploaded → processing → completed/failed`) are the only thing the frontend polls for.
 
 Each KB can use a different embedding model/provider (Ollama or Bedrock) with a different vector dimensionality — this is why the Weaviate collection is created dynamically per-KB (`VectorStoreCollectionDefinition` built at runtime) rather than from a single static record type.
 
@@ -99,4 +118,4 @@ Weaviate ≥1.29 needs `CLUSTER_HOSTNAME` set in `docker-compose.yml` (single-no
 
 ### Auth
 
-JWT bearer, issued by `AuthService` (`Api/Services`), validated globally via `app.MapControllers().RequireAuthorization()` in `Program.cs` — `[AllowAnonymous]` only on `AuthController.Login`. Admin bootstrap (`admin`/`1234`, `MustChangePassword=true`) happens once at startup if the `users` table is empty. KBs, agents, and sessions are public to any authenticated user; only `UsersController` is `[Authorize(Roles = "Admin")]`.
+JWT bearer, issued by `AuthService` (`Application/Services`), validated globally via `app.MapControllers().RequireAuthorization()` in `Program.cs` — `[AllowAnonymous]` only on `AuthController.Login`. Admin bootstrap (`admin`/`1234`, `MustChangePassword=true`) happens once at startup if the `users` table is empty. KBs, agents, and sessions are public to any authenticated user; only `UsersController` is `[Authorize(Roles = "Admin")]`.

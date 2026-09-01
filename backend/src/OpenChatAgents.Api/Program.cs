@@ -4,15 +4,19 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using OpenChatAgents.Application.Exceptions;
+using OpenChatAgents.Application.Services;
+using OpenChatAgents.Domain.Abstractions;
+using OpenChatAgents.Domain.Options;
+using OpenChatAgents.Domain.Repositories;
+using OpenChatAgents.Domain.VectorStore;
 using OpenChatAgents.Infrastructure.Agents;
 using OpenChatAgents.Infrastructure.Data;
-using OpenChatAgents.Infrastructure.Options;
+using OpenChatAgents.Infrastructure.Persistence;
 using OpenChatAgents.Infrastructure.Security;
 using OpenChatAgents.Infrastructure.Storage;
 using OpenChatAgents.Infrastructure.Telemetry;
 using OpenChatAgents.Infrastructure.VectorStore;
-using OpenChatAgents.Api.Repositories;
-using OpenChatAgents.Api.Services;
 using Weaviate.Client.DependencyInjection;
 using Weaviate.Client.VectorData.DependencyInjection;
 
@@ -72,15 +76,15 @@ builder.Services.AddWeaviate(options =>
 });
 builder.Services.AddWeaviateVectorStore();
 
-// Repositories
-builder.Services.AddScoped<AgentRepository>();
-builder.Services.AddScoped<SessionRepository>();
-builder.Services.AddScoped<MessageRepository>();
-builder.Services.AddScoped<UserRepository>();
-builder.Services.AddScoped<KnowledgeBaseRepository>();
-builder.Services.AddScoped<KbDocumentRepository>();
+// Repositories (Infrastructure implementa as interfaces definidas no Domain)
+builder.Services.AddScoped<IAgentRepository, AgentRepository>();
+builder.Services.AddScoped<ISessionRepository, SessionRepository>();
+builder.Services.AddScoped<IMessageRepository, MessageRepository>();
+builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IKnowledgeBaseRepository, KnowledgeBaseRepository>();
+builder.Services.AddScoped<IKbDocumentRepository, KbDocumentRepository>();
 
-// Services
+// Application services (casos de uso)
 builder.Services.AddScoped<AgentService>();
 builder.Services.AddScoped<SessionService>();
 builder.Services.AddScoped<ChatService>();
@@ -88,13 +92,17 @@ builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<KnowledgeBaseService>();
 builder.Services.AddScoped<KbRetrievalService>();
-builder.Services.AddSingleton<ModerationService>();
-builder.Services.AddSingleton<ChatAgentFactory>();
-builder.Services.AddSingleton<EmbeddingClientFactory>();
+
+// Infrastructure (implementações concretas das portas do Domain)
+builder.Services.AddSingleton<IChatAgentFactory, ChatAgentFactory>();
+builder.Services.AddSingleton<IEmbeddingClientFactory, EmbeddingClientFactory>();
 builder.Services.AddSingleton<BedrockModelCatalog>();
-builder.Services.AddSingleton<Argon2PasswordHasher>();
-builder.Services.AddSingleton<MinioObjectStore>();
-builder.Services.AddSingleton<KbVectorStore>();
+builder.Services.AddSingleton<IPasswordHasher, Argon2PasswordHasher>();
+builder.Services.AddSingleton<IObjectStore, MinioObjectStore>();
+builder.Services.AddSingleton<IKbVectorStore, KbVectorStore>();
+
+// Domain services puros
+builder.Services.AddSingleton<OpenChatAgents.Domain.Services.ModerationService>();
 
 var corsOrigins = builder.Configuration
     .GetSection($"{AppOptions.SectionName}:CorsOrigins")

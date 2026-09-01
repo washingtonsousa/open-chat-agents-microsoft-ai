@@ -1,12 +1,13 @@
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
+using OpenChatAgents.Domain.Abstractions;
 using UglyToad.PdfPig;
 
 namespace OpenChatAgents.Infrastructure.Ingestion;
 
-public static class TextExtractor
+public class TextExtractor : ITextExtractor
 {
-    public static string Extract(Stream stream, string fileName)
+    public string Extract(Stream stream, string fileName)
     {
         var extension = Path.GetExtension(fileName).ToLowerInvariant();
 

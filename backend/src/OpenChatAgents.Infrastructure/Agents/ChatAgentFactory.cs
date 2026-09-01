@@ -5,16 +5,18 @@ using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Options;
 using OllamaSharp;
-using OpenChatAgents.Infrastructure.Options;
+using OpenChatAgents.Domain.Abstractions;
+using OpenChatAgents.Domain.Models;
+using OpenChatAgents.Domain.Options;
 using OpenChatAgents.Infrastructure.Telemetry;
 
 namespace OpenChatAgents.Infrastructure.Agents;
 
-public class ChatAgentFactory(IOptions<AppOptions> options)
+public class ChatAgentFactory(IOptions<AppOptions> options) : IChatAgentFactory
 {
     private readonly AppOptions _options = options.Value;
 
-    public AIAgent Build(Models.Agent agent)
+    public AIAgent Build(Agent agent)
     {
         var chatClient = BuildChatClient(agent);
 
@@ -39,7 +41,7 @@ public class ChatAgentFactory(IOptions<AppOptions> options)
             .Build();
     }
 
-    public async IAsyncEnumerable<string> StreamAsync(Models.Agent agent, IEnumerable<ChatMessage> messages)
+    public async IAsyncEnumerable<string> StreamAsync(Agent agent, IEnumerable<ChatMessage> messages)
     {
         var aiAgent = Build(agent);
         await foreach (var update in aiAgent.RunStreamingAsync(messages))
@@ -49,9 +51,9 @@ public class ChatAgentFactory(IOptions<AppOptions> options)
         }
     }
 
-    private IChatClient BuildChatClient(Models.Agent agent)
+    private IChatClient BuildChatClient(Agent agent)
     {
-        if (agent.Provider == Models.LlmProvider.Bedrock)
+        if (agent.Provider == LlmProvider.Bedrock)
         {
             var credentials = !string.IsNullOrEmpty(_options.Aws.AccessKeyId) && !string.IsNullOrEmpty(_options.Aws.SecretAccessKey)
                 ? new BasicAWSCredentials(_options.Aws.AccessKeyId, _options.Aws.SecretAccessKey)

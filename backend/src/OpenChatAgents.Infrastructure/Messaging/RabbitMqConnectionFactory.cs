@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Options;
-using OpenChatAgents.Infrastructure.Options;
+using OpenChatAgents.Domain.Options;
 using RabbitMQ.Client;
 
 namespace OpenChatAgents.Infrastructure.Messaging;

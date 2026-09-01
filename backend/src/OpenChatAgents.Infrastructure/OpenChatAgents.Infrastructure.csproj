@@ -33,4 +33,8 @@
     <PackageReference Include="Weaviate.Client.VectorData" Version="1.2.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\OpenChatAgents.Domain\OpenChatAgents.Domain.csproj" />
+  </ItemGroup>
+
 </Project>

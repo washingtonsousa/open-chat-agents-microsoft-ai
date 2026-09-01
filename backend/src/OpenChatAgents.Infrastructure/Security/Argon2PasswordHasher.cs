@@ -1,11 +1,12 @@
 using System.Security.Cryptography;
 using Konscious.Security.Cryptography;
 using Microsoft.Extensions.Options;
-using OpenChatAgents.Infrastructure.Options;
+using OpenChatAgents.Domain.Abstractions;
+using OpenChatAgents.Domain.Options;
 
 namespace OpenChatAgents.Infrastructure.Security;
 
-public class Argon2PasswordHasher(IOptions<AppOptions> options)
+public class Argon2PasswordHasher(IOptions<AppOptions> options) : IPasswordHasher
 {
     private const int SaltSize = 16;
     private const int HashSize = 32;

@@ -3,9 +3,9 @@ using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using OpenChatAgents.Infrastructure.Agents;
-using OpenChatAgents.Api.Dtos;
-using OpenChatAgents.Infrastructure.Options;
-using OpenChatAgents.Api.Services;
+using OpenChatAgents.Application.Dtos;
+using OpenChatAgents.Application.Exceptions;
+using OpenChatAgents.Domain.Options;
 
 namespace OpenChatAgents.Api.Controllers;
 

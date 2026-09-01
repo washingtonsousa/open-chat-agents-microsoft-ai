@@ -1,9 +1,13 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 COPY src/OpenChatAgents.Worker/OpenChatAgents.Worker.csproj src/OpenChatAgents.Worker/
+COPY src/OpenChatAgents.Application/OpenChatAgents.Application.csproj src/OpenChatAgents.Application/
+COPY src/OpenChatAgents.Domain/OpenChatAgents.Domain.csproj src/OpenChatAgents.Domain/
 COPY src/OpenChatAgents.Infrastructure/OpenChatAgents.Infrastructure.csproj src/OpenChatAgents.Infrastructure/
 RUN dotnet restore src/OpenChatAgents.Worker/OpenChatAgents.Worker.csproj
 COPY src/OpenChatAgents.Worker/ src/OpenChatAgents.Worker/
+COPY src/OpenChatAgents.Application/ src/OpenChatAgents.Application/
+COPY src/OpenChatAgents.Domain/ src/OpenChatAgents.Domain/
 COPY src/OpenChatAgents.Infrastructure/ src/OpenChatAgents.Infrastructure/
 RUN dotnet publish src/OpenChatAgents.Worker/OpenChatAgents.Worker.csproj -c Release -o /app/publish
 

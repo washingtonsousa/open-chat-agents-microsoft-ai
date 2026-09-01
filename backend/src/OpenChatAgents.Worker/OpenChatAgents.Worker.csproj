@@ -12,6 +12,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\OpenChatAgents.Domain\OpenChatAgents.Domain.csproj" />
+    <ProjectReference Include="..\OpenChatAgents.Application\OpenChatAgents.Application.csproj" />
     <ProjectReference Include="..\OpenChatAgents.Infrastructure\OpenChatAgents.Infrastructure.csproj" />
   </ItemGroup>
 </Project>

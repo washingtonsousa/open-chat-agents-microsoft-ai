@@ -4,12 +4,14 @@ using Amazon.Runtime;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Options;
 using OllamaSharp;
-using OpenChatAgents.Infrastructure.Options;
+using OpenChatAgents.Domain.Abstractions;
+using OpenChatAgents.Domain.Models;
+using OpenChatAgents.Domain.Options;
 using OpenChatAgents.Infrastructure.Telemetry;
 
 namespace OpenChatAgents.Infrastructure.Agents;
 
-public class EmbeddingClientFactory(IOptions<AppOptions> options)
+public class EmbeddingClientFactory(IOptions<AppOptions> options) : IEmbeddingClientFactory
 {
     private readonly AppOptions _options = options.Value;
 
@@ -27,7 +29,7 @@ public class EmbeddingClientFactory(IOptions<AppOptions> options)
 
     private IEmbeddingGenerator<string, Embedding<float>> BuildGenerator(string provider, string model)
     {
-        if (provider == Models.LlmProvider.Bedrock)
+        if (provider == LlmProvider.Bedrock)
         {
             var credentials = !string.IsNullOrEmpty(_options.Aws.AccessKeyId) && !string.IsNullOrEmpty(_options.Aws.SecretAccessKey)
                 ? new BasicAWSCredentials(_options.Aws.AccessKeyId, _options.Aws.SecretAccessKey)

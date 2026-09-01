@@ -1,8 +1,9 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using OpenChatAgents.Api.Dtos;
-using OpenChatAgents.Api.Services;
+using OpenChatAgents.Application.Dtos;
+using OpenChatAgents.Application.Services;
+using OpenChatAgents.Application.Exceptions;
 
 namespace OpenChatAgents.Api.Controllers;
 

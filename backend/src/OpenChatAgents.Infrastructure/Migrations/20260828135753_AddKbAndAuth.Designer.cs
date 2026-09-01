@@ -25,7 +25,7 @@ namespace OpenChatAgents.Infrastructure.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("OpenChatAgents.Infrastructure.Models.Agent", b =>
+            modelBuilder.Entity("OpenChatAgents.Domain.Models.Agent", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -79,7 +79,7 @@ namespace OpenChatAgents.Infrastructure.Migrations
                     b.ToTable("agents", (string)null);
                 });
 
-            modelBuilder.Entity("OpenChatAgents.Infrastructure.Models.AgentKnowledgeBase", b =>
+            modelBuilder.Entity("OpenChatAgents.Domain.Models.AgentKnowledgeBase", b =>
                 {
                     b.Property<Guid>("AgentId")
                         .HasColumnType("uuid");
@@ -94,7 +94,7 @@ namespace OpenChatAgents.Infrastructure.Migrations
                     b.ToTable("agent_knowledge_bases", (string)null);
                 });
 
-            modelBuilder.Entity("OpenChatAgents.Infrastructure.Models.KbChunkRef", b =>
+            modelBuilder.Entity("OpenChatAgents.Domain.Models.KbChunkRef", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -124,7 +124,7 @@ namespace OpenChatAgents.Infrastructure.Migrations
                     b.ToTable("kb_chunk_refs", (string)null);
                 });
 
-            modelBuilder.Entity("OpenChatAgents.Infrastructure.Models.KbDocument", b =>
+            modelBuilder.Entity("OpenChatAgents.Domain.Models.KbDocument", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -177,7 +177,7 @@ namespace OpenChatAgents.Infrastructure.Migrations
                     b.ToTable("kb_documents", (string)null);
                 });
 
-            modelBuilder.Entity("OpenChatAgents.Infrastructure.Models.KnowledgeBase", b =>
+            modelBuilder.Entity("OpenChatAgents.Domain.Models.KnowledgeBase", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -234,7 +234,7 @@ namespace OpenChatAgents.Infrastructure.Migrations
                     b.ToTable("knowledge_bases", (string)null);
                 });
 
-            modelBuilder.Entity("OpenChatAgents.Infrastructure.Models.Message", b =>
+            modelBuilder.Entity("OpenChatAgents.Domain.Models.Message", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -264,7 +264,7 @@ namespace OpenChatAgents.Infrastructure.Migrations
                     b.ToTable("messages", (string)null);
                 });
 
-            modelBuilder.Entity("OpenChatAgents.Infrastructure.Models.Session", b =>
+            modelBuilder.Entity("OpenChatAgents.Domain.Models.Session", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -295,7 +295,7 @@ namespace OpenChatAgents.Infrastructure.Migrations
                     b.ToTable("sessions", (string)null);
                 });
 
-            modelBuilder.Entity("OpenChatAgents.Infrastructure.Models.User", b =>
+            modelBuilder.Entity("OpenChatAgents.Domain.Models.User", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -334,9 +334,9 @@ namespace OpenChatAgents.Infrastructure.Migrations
                     b.ToTable("users", (string)null);
                 });
 
-            modelBuilder.Entity("OpenChatAgents.Infrastructure.Models.Agent", b =>
+            modelBuilder.Entity("OpenChatAgents.Domain.Models.Agent", b =>
                 {
-                    b.HasOne("OpenChatAgents.Infrastructure.Models.User", "CreatedByUser")
+                    b.HasOne("OpenChatAgents.Domain.Models.User", "CreatedByUser")
                         .WithMany()
                         .HasForeignKey("CreatedByUserId")
                         .OnDelete(DeleteBehavior.SetNull);
@@ -344,15 +344,15 @@ namespace OpenChatAgents.Infrastructure.Migrations
                     b.Navigation("CreatedByUser");
                 });
 
-            modelBuilder.Entity("OpenChatAgents.Infrastructure.Models.AgentKnowledgeBase", b =>
+            modelBuilder.Entity("OpenChatAgents.Domain.Models.AgentKnowledgeBase", b =>
                 {
-                    b.HasOne("OpenChatAgents.Infrastructure.Models.Agent", "Agent")
+                    b.HasOne("OpenChatAgents.Domain.Models.Agent", "Agent")
                         .WithMany("KnowledgeBaseLinks")
                         .HasForeignKey("AgentId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("OpenChatAgents.Infrastructure.Models.KnowledgeBase", "KnowledgeBase")
+                    b.HasOne("OpenChatAgents.Domain.Models.KnowledgeBase", "KnowledgeBase")
                         .WithMany("AgentLinks")
                         .HasForeignKey("KnowledgeBaseId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -363,9 +363,9 @@ namespace OpenChatAgents.Infrastructure.Migrations
                     b.Navigation("KnowledgeBase");
                 });
 
-            modelBuilder.Entity("OpenChatAgents.Infrastructure.Models.KbChunkRef", b =>
+            modelBuilder.Entity("OpenChatAgents.Domain.Models.KbChunkRef", b =>
                 {
-                    b.HasOne("OpenChatAgents.Infrastructure.Models.KbDocument", "KbDocument")
+                    b.HasOne("OpenChatAgents.Domain.Models.KbDocument", "KbDocument")
                         .WithMany("Chunks")
                         .HasForeignKey("KbDocumentId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -374,9 +374,9 @@ namespace OpenChatAgents.Infrastructure.Migrations
                     b.Navigation("KbDocument");
                 });
 
-            modelBuilder.Entity("OpenChatAgents.Infrastructure.Models.KbDocument", b =>
+            modelBuilder.Entity("OpenChatAgents.Domain.Models.KbDocument", b =>
                 {
-                    b.HasOne("OpenChatAgents.Infrastructure.Models.KnowledgeBase", "KnowledgeBase")
+                    b.HasOne("OpenChatAgents.Domain.Models.KnowledgeBase", "KnowledgeBase")
                         .WithMany("Documents")
                         .HasForeignKey("KnowledgeBaseId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -385,9 +385,9 @@ namespace OpenChatAgents.Infrastructure.Migrations
                     b.Navigation("KnowledgeBase");
                 });
 
-            modelBuilder.Entity("OpenChatAgents.Infrastructure.Models.KnowledgeBase", b =>
+            modelBuilder.Entity("OpenChatAgents.Domain.Models.KnowledgeBase", b =>
                 {
-                    b.HasOne("OpenChatAgents.Infrastructure.Models.User", "CreatedByUser")
+                    b.HasOne("OpenChatAgents.Domain.Models.User", "CreatedByUser")
                         .WithMany()
                         .HasForeignKey("CreatedByUserId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -396,9 +396,9 @@ namespace OpenChatAgents.Infrastructure.Migrations
                     b.Navigation("CreatedByUser");
                 });
 
-            modelBuilder.Entity("OpenChatAgents.Infrastructure.Models.Message", b =>
+            modelBuilder.Entity("OpenChatAgents.Domain.Models.Message", b =>
                 {
-                    b.HasOne("OpenChatAgents.Infrastructure.Models.Session", "Session")
+                    b.HasOne("OpenChatAgents.Domain.Models.Session", "Session")
                         .WithMany("Messages")
                         .HasForeignKey("SessionId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -407,9 +407,9 @@ namespace OpenChatAgents.Infrastructure.Migrations
                     b.Navigation("Session");
                 });
 
-            modelBuilder.Entity("OpenChatAgents.Infrastructure.Models.Session", b =>
+            modelBuilder.Entity("OpenChatAgents.Domain.Models.Session", b =>
                 {
-                    b.HasOne("OpenChatAgents.Infrastructure.Models.Agent", "Agent")
+                    b.HasOne("OpenChatAgents.Domain.Models.Agent", "Agent")
                         .WithMany("Sessions")
                         .HasForeignKey("AgentId")
                         .OnDelete(DeleteBehavior.SetNull);
@@ -417,9 +417,9 @@ namespace OpenChatAgents.Infrastructure.Migrations
                     b.Navigation("Agent");
                 });
 
-            modelBuilder.Entity("OpenChatAgents.Infrastructure.Models.User", b =>
+            modelBuilder.Entity("OpenChatAgents.Domain.Models.User", b =>
                 {
-                    b.HasOne("OpenChatAgents.Infrastructure.Models.User", "CreatedByUser")
+                    b.HasOne("OpenChatAgents.Domain.Models.User", "CreatedByUser")
                         .WithMany()
                         .HasForeignKey("CreatedByUserId")
                         .OnDelete(DeleteBehavior.SetNull);
@@ -427,26 +427,26 @@ namespace OpenChatAgents.Infrastructure.Migrations
                     b.Navigation("CreatedByUser");
                 });
 
-            modelBuilder.Entity("OpenChatAgents.Infrastructure.Models.Agent", b =>
+            modelBuilder.Entity("OpenChatAgents.Domain.Models.Agent", b =>
                 {
                     b.Navigation("KnowledgeBaseLinks");
 
                     b.Navigation("Sessions");
                 });
 
-            modelBuilder.Entity("OpenChatAgents.Infrastructure.Models.KbDocument", b =>
+            modelBuilder.Entity("OpenChatAgents.Domain.Models.KbDocument", b =>
                 {
                     b.Navigation("Chunks");
                 });
 
-            modelBuilder.Entity("OpenChatAgents.Infrastructure.Models.KnowledgeBase", b =>
+            modelBuilder.Entity("OpenChatAgents.Domain.Models.KnowledgeBase", b =>
                 {
                     b.Navigation("AgentLinks");
 
                     b.Navigation("Documents");
                 });
 
-            modelBuilder.Entity("OpenChatAgents.Infrastructure.Models.Session", b =>
+            modelBuilder.Entity("OpenChatAgents.Domain.Models.Session", b =>
                 {
                     b.Navigation("Messages");
                 });

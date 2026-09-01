@@ -1,11 +1,12 @@
 using Microsoft.Extensions.Options;
 using Minio;
 using Minio.DataModel.Args;
-using OpenChatAgents.Infrastructure.Options;
+using OpenChatAgents.Domain.Abstractions;
+using OpenChatAgents.Domain.Options;
 
 namespace OpenChatAgents.Infrastructure.Storage;
 
-public class MinioObjectStore
+public class MinioObjectStore : IObjectStore
 {
     private readonly IMinioClient _client;
     private readonly string _bucket;

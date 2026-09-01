@@ -3,7 +3,7 @@ using Amazon.Bedrock;
 using Amazon.Bedrock.Model;
 using Amazon.Runtime;
 using Microsoft.Extensions.Options;
-using OpenChatAgents.Infrastructure.Options;
+using OpenChatAgents.Domain.Options;
 
 namespace OpenChatAgents.Infrastructure.Agents;
 
