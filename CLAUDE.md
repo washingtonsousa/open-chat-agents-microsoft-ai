@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A .NET port of the Python **open-chat-agents** project (`../Chat Bot Com Rag e Front`), rebuilt on **ASP.NET Core 10** and the **Microsoft Agent Framework** instead of FastAPI/LangChain, and extended with a real RAG pipeline (Knowledge Bases, event-driven ingestion into Weaviate) and JWT/Argon2id auth that the original project never had. See [README.md](README.md) for the full feature list, API table, and configuration reference — don't duplicate that here.
+A .NET port of the Python **open-chat-agents** project (`../Chat Bot Com Rag e Front`), rebuilt on **ASP.NET Core 10** and the **Microsoft Agent Framework** instead of FastAPI/LangChain, and extended with things the original project never had: a real RAG pipeline (Knowledge Bases, event-driven ingestion into Weaviate), JWT/Argon2id auth, MCP tool servers attachable to agents, a client-credentials flow for external apps to consume agents remotely, a home dashboard, and OpenTelemetry/Langfuse observability. See [spec.md](spec.md) for the full architecture/data-model/API reference and [README.md](README.md) for the quickstart/config table — don't duplicate either here.
 
 ## Commands
 
@@ -56,11 +56,14 @@ Five projects, DDD-ish layering. Dependencies point inward: `Api`/`Worker` → `
 ```
 backend/src/
 ├── OpenChatAgents.Domain/            entities, options POCOs, repository interfaces, infra "ports"
-│   ├── Models/          Agent, Session, Message, User, KnowledgeBase, KbDocument, KbChunkRef, AgentKnowledgeBase
+│   ├── Models/          Agent, Session, Message, User, KnowledgeBase, KbDocument, KbChunkRef,
+│   │                    AgentKnowledgeBase, McpServer, AgentMcpServer, McpAuthType, ConsumerApplication
 │   ├── Options/           AppOptions and its nested sections (Jwt, Minio, RabbitMq, Weaviate, Argon2, Aws, Telemetry)
 │   ├── Repositories/        IAgentRepository, ISessionRepository, IMessageRepository, IUserRepository,
-│   │                        IKnowledgeBaseRepository, IKbDocumentRepository
-│   ├── Abstractions/          IChatAgentFactory, IEmbeddingClientFactory, IObjectStore, IPasswordHasher, ITextExtractor
+│   │                        IKnowledgeBaseRepository, IKbDocumentRepository, IMcpServerRepository,
+│   │                        IConsumerApplicationRepository
+│   ├── Abstractions/          IChatAgentFactory, IEmbeddingClientFactory, IObjectStore, IPasswordHasher,
+│   │                          ITextExtractor, ISecretProtector, IMcpToolFactory
 │   ├── VectorStore/             IKbVectorStore + KbChunkRecord/KbSearchResult
 │   ├── Services/                  ModerationService, ChunkingService (pure, no external deps)
 │   └── Telemetry/                   AppActivitySource
@@ -68,17 +71,20 @@ backend/src/
 │   ├── Dtos/             wire contracts (Create/Update/Response types, snake_case over the wire)
 │   ├── Exceptions/         ApiException
 │   └── Services/             AgentService, SessionService, ChatService, AuthService, UserService,
-│                             KnowledgeBaseService, KbRetrievalService, KbIngestionService
+│                             KnowledgeBaseService, KbRetrievalService, KbIngestionService,
+│                             McpServerService, ConsumerApplicationService
 ├── OpenChatAgents.Infrastructure/  concrete implementations of Domain interfaces
 │   ├── Data/             AppDbContext + Migrations
-│   ├── Persistence/        EF Core repositories (AgentRepository, SessionRepository, ...)
+│   ├── Persistence/        EF Core repositories (AgentRepository, SessionRepository, McpServerRepository,
+│   │                       ConsumerApplicationRepository, ...)
 │   ├── Agents/              ChatAgentFactory, EmbeddingClientFactory, BedrockModelCatalog
-│   ├── Security/              Argon2PasswordHasher
-│   ├── Storage/                  MinioObjectStore
-│   ├── Messaging/                  RabbitMqConnectionFactory, MinioEventNotification (S3-style event DTO)
-│   ├── VectorStore/                   KbVectorStore
-│   ├── Ingestion/                       TextExtractor
-│   └── Telemetry/                         TelemetryExtensions (OTel/Langfuse wiring)
+│   ├── Mcp/                   McpToolFactory (connects to MCP servers, resolves their tools)
+│   ├── Security/                Argon2PasswordHasher, DataProtectionSecretProtector
+│   ├── Storage/                    MinioObjectStore
+│   ├── Messaging/                    RabbitMqConnectionFactory, MinioEventNotification (S3-style event DTO)
+│   ├── VectorStore/                     KbVectorStore
+│   ├── Ingestion/                         TextExtractor
+│   └── Telemetry/                           TelemetryExtensions (OTel/Langfuse wiring)
 ├── OpenChatAgents.Api/       Controllers + Program.cs (composition root — the only place that binds
 │                             Domain interfaces to Infrastructure implementations via DI)
 └── OpenChatAgents.Worker/    KbIngestionBackgroundService (thin RabbitMQ adapter) + Program.cs
@@ -105,6 +111,16 @@ Upload (`KnowledgeBasesController` → `KnowledgeBaseService.UploadDocumentAsync
 
 Each KB can use a different embedding model/provider (Ollama or Bedrock) with a different vector dimensionality — this is why the Weaviate collection is created dynamically per-KB (`VectorStoreCollectionDefinition` built at runtime) rather than from a single static record type.
 
+### MCP tools on agents
+
+An `Agent` can be linked (many-to-many, `AgentMcpServer`) to one or more `McpServer` rows (`Url` + `AuthType`: `none`/`bearer-token`/`header` + an encrypted `Secret`). `ChatAgentFactory.StreamAsync` (Infrastructure) resolves tools **fresh every chat turn** via `IMcpToolFactory.CreateSessionAsync` — it does *not* cache a connected `McpClient` as a singleton, because the SDK docs don't confirm that's safe under concurrent requests. The returned `IMcpToolSession` must stay alive for the whole `RunStreamingAsync` call (not just the initial `ListToolsAsync`), since a tool invocation during streaming routes back over that same MCP connection — it's disposed only in the `finally` after streaming ends. A server that fails to connect/authenticate is skipped with a logged warning, never throws — one bad MCP server must never break the chat. `McpClientTool` (from `ModelContextProtocol.Core`) already derives from `AIFunction`/`AITool`, so resolved tools go straight into `ChatOptions.Tools` with no conversion step.
+
+`McpServer.Secret` is encrypted at rest via `ISecretProtector` (Infrastructure: `DataProtectionSecretProtector`, ASP.NET Core Data Protection) — not hashed like a password, because it has to be recoverable in plaintext to authenticate against the MCP server. The Data Protection key ring is persisted to the `dataprotection_keys` Docker volume (`/keys` in the `backend` container) specifically so encrypted secrets survive a container recreate; losing that volume makes every stored MCP secret permanently undecryptable.
+
+### Remote API access (client credentials)
+
+`ConsumerApplication` (admin-managed via `ConsumerApplicationsController`, `[Authorize(Roles = "Admin")]`) holds a `ClientId` + Argon2id-hashed `ClientSecret`. `POST /api/v1/auth/token` (`AllowAnonymous`) exchanges `client_id`/`client_secret` for a JWT built by the same `AuthService`/signing key as a user login, just with different claims (`sub` = the `ConsumerApplication.Id`, plus `client_id` and `token_use=client`). That token is then usable exactly like a user's — **no change was needed to `ChatController`/`SessionsController`**, since sessions/agents/KBs were already public to any authenticated principal and neither controller does a `Users` table lookup on `sub`. The plaintext secret is generated once at creation (`ConsumerApplicationService.CreateAsync`), returned only in that response (`ConsumerApplicationCreated`), and never retrievable again — only its hash is stored.
+
 ### Weaviate client quirks (read before touching `KbVectorStore.cs`)
 
 - `Weaviate.Client.VectorData` is pinned to `Microsoft.Extensions.VectorData.Abstractions` **10.0.1** in `Infrastructure.csproj` — bumping the Abstractions package alone compiles fine but breaks at runtime (`MissingMethodException` on `VectorSearchOptions.OldFilter`). Keep them in lockstep.
@@ -118,4 +134,8 @@ Weaviate ≥1.29 needs `CLUSTER_HOSTNAME` set in `docker-compose.yml` (single-no
 
 ### Auth
 
-JWT bearer, issued by `AuthService` (`Application/Services`), validated globally via `app.MapControllers().RequireAuthorization()` in `Program.cs` — `[AllowAnonymous]` only on `AuthController.Login`. Admin bootstrap (`admin`/`1234`, `MustChangePassword=true`) happens once at startup if the `users` table is empty. KBs, agents, and sessions are public to any authenticated user; only `UsersController` is `[Authorize(Roles = "Admin")]`.
+JWT bearer, issued by `AuthService` (`Application/Services`), validated globally via `app.MapControllers().RequireAuthorization()` in `Program.cs` — `[AllowAnonymous]` only on `AuthController.Login` and `AuthController.Token` (the client-credentials endpoint). Admin bootstrap (`admin`/`1234`, `MustChangePassword=true`) happens once at startup if the `users` table is empty. A single `JwtBearer` scheme validates both user-login tokens and client-credentials tokens — `TokenValidationParameters` only checks signature/issuer/audience/lifetime, never does a `Users` table lookup on `sub`, so both token kinds pass through the same pipeline. KBs, agents, sessions, and MCP servers are public to any authenticated principal (user or consumer application); only `UsersController` and `ConsumerApplicationsController` are `[Authorize(Roles = "Admin")]`.
+
+### Frontend routing
+
+The chat UI lives at `/chat`, not `/` — `/` is the home dashboard (welcome message, entity counts, quick actions, recent sessions). Every page composes its own `AuthGuard` + nav Drawer independently; there's no shared Next.js layout for it. `SessionSidebar` (used only by `/chat`) and the dashboard's own Drawer both list the same nav destinations (Painel, Chat, Bases de conhecimento, Servidores MCP, Usuários, Aplicações consumidoras) — keep them in sync if you add a new top-level page.
