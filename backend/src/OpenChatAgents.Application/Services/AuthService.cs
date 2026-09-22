@@ -15,11 +15,34 @@ namespace OpenChatAgents.Application.Services;
 public static class AuthClaimTypes
 {
     public const string IsAdmin = "is_admin";
+    public const string TokenUse = "token_use";
 }
 
-public class AuthService(IUserRepository userRepo, IPasswordHasher hasher, IOptions<AppOptions> options)
+public class AuthService(IUserRepository userRepo, IConsumerApplicationRepository consumerAppRepo, IPasswordHasher hasher, IOptions<AppOptions> options)
 {
     private readonly JwtOptions _jwt = options.Value.Jwt;
+
+    public async Task<TokenResponse> IssueClientCredentialsTokenAsync(string clientId, string clientSecret)
+    {
+        var app = await consumerAppRepo.GetByClientIdAsync(clientId);
+        if (app is null || !app.IsActive || !hasher.Verify(clientSecret, app.ClientSecretHash))
+            throw ApiException.Unauthorized("client_id ou client_secret inválidos.");
+
+        var claims = new List<Claim>
+        {
+            new(JwtRegisteredClaimNames.Sub, app.Id.ToString()),
+            new("client_id", app.ClientId),
+            new(AuthClaimTypes.TokenUse, "client"),
+        };
+
+        var expiresIn = TimeSpan.FromMinutes(_jwt.ExpiryMinutes);
+        return new TokenResponse
+        {
+            AccessToken = BuildToken(claims, expiresIn),
+            TokenType = "Bearer",
+            ExpiresIn = (int)expiresIn.TotalSeconds,
+        };
+    }
 
     public async Task<LoginResponse> LoginAsync(string username, string password)
     {
@@ -54,6 +77,11 @@ public class AuthService(IUserRepository userRepo, IPasswordHasher hasher, IOpti
         if (user.IsAdmin)
             claims.Add(new Claim(ClaimTypes.Role, "Admin"));
 
+        return BuildToken(claims, TimeSpan.FromMinutes(_jwt.ExpiryMinutes));
+    }
+
+    private string BuildToken(IEnumerable<Claim> claims, TimeSpan expiresIn)
+    {
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwt.Secret));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
@@ -61,7 +89,7 @@ public class AuthService(IUserRepository userRepo, IPasswordHasher hasher, IOpti
             issuer: _jwt.Issuer,
             audience: _jwt.Audience,
             claims: claims,
-            expires: DateTime.UtcNow.AddMinutes(_jwt.ExpiryMinutes),
+            expires: DateTime.UtcNow.Add(expiresIn),
             signingCredentials: credentials);
 
         return new JwtSecurityTokenHandler().WriteToken(token);

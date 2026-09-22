@@ -81,6 +81,11 @@ export interface AgentKnowledgeBaseSummary {
   name: string;
 }
 
+export interface AgentMcpServerSummary {
+  id: string;
+  name: string;
+}
+
 export interface Agent {
   id: string;
   name: string;
@@ -91,6 +96,7 @@ export interface Agent {
   system_prompt: string;
   created_by: User | null;
   knowledge_bases: AgentKnowledgeBaseSummary[];
+  mcp_servers: AgentMcpServerSummary[];
   created_at: string;
   updated_at: string;
 }
@@ -103,6 +109,60 @@ export interface AgentCreate {
   max_tokens: number | null;
   system_prompt: string;
   knowledge_base_ids: string[];
+  mcp_server_ids: string[];
+}
+
+export type McpAuthType = "none" | "bearer-token" | "header";
+
+export interface McpServer {
+  id: string;
+  name: string;
+  url: string;
+  auth_type: McpAuthType;
+  auth_header_name: string | null;
+  has_secret: boolean;
+  created_by: User | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface McpServerCreate {
+  name: string;
+  url: string;
+  auth_type: McpAuthType;
+  auth_header_name?: string | null;
+  secret?: string | null;
+}
+
+export interface McpServerListResponse {
+  mcp_servers: McpServer[];
+  total: number;
+}
+
+export interface ConsumerApplication {
+  id: string;
+  name: string;
+  client_id: string;
+  is_active: boolean;
+  created_by: User | null;
+  created_at: string;
+}
+
+export interface ConsumerApplicationCreate {
+  name: string;
+}
+
+export interface ConsumerApplicationCreated {
+  id: string;
+  name: string;
+  client_id: string;
+  client_secret: string;
+  created_at: string;
+}
+
+export interface ConsumerApplicationListResponse {
+  consumer_applications: ConsumerApplication[];
+  total: number;
 }
 
 export interface AgentListResponse {

@@ -87,7 +87,7 @@ function UsersContent() {
           <ArrowBackIcon fontSize="small" />
         </IconButton>
         <Typography variant="body2" color="text.secondary">
-          Voltar ao chat
+          Painel
         </Typography>
       </Stack>
 

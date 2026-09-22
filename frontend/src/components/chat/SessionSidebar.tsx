@@ -27,6 +27,9 @@ import StorageIcon from "@mui/icons-material/Storage";
 import GroupIcon from "@mui/icons-material/Group";
 import LogoutIcon from "@mui/icons-material/Logout";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutlineOutlined";
+import DashboardIcon from "@mui/icons-material/DashboardOutlined";
+import ExtensionIcon from "@mui/icons-material/Extension";
+import ApiIcon from "@mui/icons-material/Api";
 import { useCurrentUser } from "@/components/auth/AuthGuard";
 import { authStorage } from "@/services/api";
 import type { Agent, Session } from "@/types";
@@ -194,11 +197,23 @@ export function SessionSidebar({
 
       <Divider />
       <List dense>
+        <ListItemButton component={Link} href="/">
+          <ListItemAvatar sx={{ minWidth: 36 }}>
+            <DashboardIcon fontSize="small" color="action" />
+          </ListItemAvatar>
+          <ListItemText primary="Painel" slotProps={{ primary: { sx: { fontSize: 13 } } }} />
+        </ListItemButton>
         <ListItemButton component={Link} href="/knowledge-bases">
           <ListItemAvatar sx={{ minWidth: 36 }}>
             <StorageIcon fontSize="small" color="action" />
           </ListItemAvatar>
           <ListItemText primary="Bases de conhecimento" slotProps={{ primary: { sx: { fontSize: 13 } } }} />
+        </ListItemButton>
+        <ListItemButton component={Link} href="/mcp-servers">
+          <ListItemAvatar sx={{ minWidth: 36 }}>
+            <ExtensionIcon fontSize="small" color="action" />
+          </ListItemAvatar>
+          <ListItemText primary="Servidores MCP" slotProps={{ primary: { sx: { fontSize: 13 } } }} />
         </ListItemButton>
         {user?.is_admin && (
           <ListItemButton component={Link} href="/admin/users">
@@ -206,6 +221,14 @@ export function SessionSidebar({
               <GroupIcon fontSize="small" color="action" />
             </ListItemAvatar>
             <ListItemText primary="Usuários" slotProps={{ primary: { sx: { fontSize: 13 } } }} />
+          </ListItemButton>
+        )}
+        {user?.is_admin && (
+          <ListItemButton component={Link} href="/admin/consumer-applications">
+            <ListItemAvatar sx={{ minWidth: 36 }}>
+              <ApiIcon fontSize="small" color="action" />
+            </ListItemAvatar>
+            <ListItemText primary="Aplicações consumidoras" slotProps={{ primary: { sx: { fontSize: 13 } } }} />
           </ListItemButton>
         )}
         <ListItemButton onClick={handleLogout}>

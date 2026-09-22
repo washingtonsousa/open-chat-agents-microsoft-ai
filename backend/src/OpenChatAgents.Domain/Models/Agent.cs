@@ -16,4 +16,5 @@ public class Agent
     public User? CreatedByUser { get; set; }
     public ICollection<Session> Sessions { get; set; } = [];
     public ICollection<AgentKnowledgeBase> KnowledgeBaseLinks { get; set; } = [];
+    public ICollection<AgentMcpServer> McpServerLinks { get; set; } = [];
 }

@@ -21,6 +21,14 @@ public class AuthController(AuthService authService, IUserRepository userRepo) :
         return Ok(response);
     }
 
+    [HttpPost("token")]
+    [AllowAnonymous]
+    public async Task<ActionResult<TokenResponse>> Token([FromBody] ClientCredentialsRequest payload)
+    {
+        var response = await authService.IssueClientCredentialsTokenAsync(payload.ClientId, payload.ClientSecret);
+        return Ok(response);
+    }
+
     [HttpPost("change-password")]
     public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest payload)
     {

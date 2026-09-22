@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -12,6 +13,7 @@ using OpenChatAgents.Domain.Repositories;
 using OpenChatAgents.Domain.VectorStore;
 using OpenChatAgents.Infrastructure.Agents;
 using OpenChatAgents.Infrastructure.Data;
+using OpenChatAgents.Infrastructure.Mcp;
 using OpenChatAgents.Infrastructure.Persistence;
 using OpenChatAgents.Infrastructure.Security;
 using OpenChatAgents.Infrastructure.Storage;
@@ -83,6 +85,8 @@ builder.Services.AddScoped<IMessageRepository, MessageRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IKnowledgeBaseRepository, KnowledgeBaseRepository>();
 builder.Services.AddScoped<IKbDocumentRepository, KbDocumentRepository>();
+builder.Services.AddScoped<IMcpServerRepository, McpServerRepository>();
+builder.Services.AddScoped<IConsumerApplicationRepository, ConsumerApplicationRepository>();
 
 // Application services (casos de uso)
 builder.Services.AddScoped<AgentService>();
@@ -92,6 +96,8 @@ builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<KnowledgeBaseService>();
 builder.Services.AddScoped<KbRetrievalService>();
+builder.Services.AddScoped<McpServerService>();
+builder.Services.AddScoped<ConsumerApplicationService>();
 
 // Infrastructure (implementações concretas das portas do Domain)
 builder.Services.AddSingleton<IChatAgentFactory, ChatAgentFactory>();
@@ -100,6 +106,12 @@ builder.Services.AddSingleton<BedrockModelCatalog>();
 builder.Services.AddSingleton<IPasswordHasher, Argon2PasswordHasher>();
 builder.Services.AddSingleton<IObjectStore, MinioObjectStore>();
 builder.Services.AddSingleton<IKbVectorStore, KbVectorStore>();
+builder.Services.AddSingleton<ISecretProtector, DataProtectionSecretProtector>();
+builder.Services.AddSingleton<IMcpToolFactory, McpToolFactory>();
+
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo("/keys"))
+    .SetApplicationName("OpenChatAgents");
 
 // Domain services puros
 builder.Services.AddSingleton<OpenChatAgents.Domain.Services.ModerationService>();

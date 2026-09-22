@@ -21,7 +21,8 @@ public class AgentService(IAgentRepository repo)
             payload.MaxTokens,
             payload.SystemPrompt,
             createdByUserId,
-            payload.KnowledgeBaseIds);
+            payload.KnowledgeBaseIds,
+            payload.McpServerIds);
     }
 
     public async Task<Models.Agent> GetAgentAsync(Guid agentId)
@@ -51,7 +52,8 @@ public class AgentService(IAgentRepository repo)
             payload.Temperature,
             payload.MaxTokens,
             payload.SystemPrompt,
-            payload.KnowledgeBaseIds);
+            payload.KnowledgeBaseIds,
+            payload.McpServerIds);
 
         return await repo.UpdateAsync(agent, update);
     }

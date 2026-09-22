@@ -10,11 +10,12 @@ public record AgentUpdateFields(
     double? Temperature,
     int? MaxTokens,
     string? SystemPrompt,
-    Guid[]? KnowledgeBaseIds);
+    Guid[]? KnowledgeBaseIds,
+    Guid[]? McpServerIds);
 
 public interface IAgentRepository
 {
-    Task<Agent> CreateAsync(string name, string provider, string llmModel, double temperature, int? maxTokens, string systemPrompt, Guid? createdByUserId, IEnumerable<Guid> knowledgeBaseIds);
+    Task<Agent> CreateAsync(string name, string provider, string llmModel, double temperature, int? maxTokens, string systemPrompt, Guid? createdByUserId, IEnumerable<Guid> knowledgeBaseIds, IEnumerable<Guid> mcpServerIds);
     Task<Agent?> GetByIdAsync(Guid agentId);
     Task<Agent?> GetByNameAsync(string name);
     Task<List<Agent>> ListAllAsync();

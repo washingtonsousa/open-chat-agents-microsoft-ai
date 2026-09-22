@@ -3,12 +3,18 @@ import type {
   AgentCreate,
   AgentListResponse,
   ChatHistoryResponse,
+  ConsumerApplicationCreate,
+  ConsumerApplicationCreated,
+  ConsumerApplicationListResponse,
   KbDocument,
   KbDocumentListResponse,
   KnowledgeBase,
   KnowledgeBaseCreate,
   KnowledgeBaseListResponse,
   LoginResponse,
+  McpServer,
+  McpServerCreate,
+  McpServerListResponse,
   Message,
   ModelsResponse,
   Session,
@@ -145,6 +151,32 @@ export const knowledgeBaseApi = {
 
   listDocuments: (id: string) =>
     request<KbDocumentListResponse>(`/knowledge-bases/${id}/documents`),
+};
+
+export const mcpServerApi = {
+  create: (payload: McpServerCreate) =>
+    request<McpServer>("/mcp-servers", { method: "POST", body: JSON.stringify(payload) }),
+
+  update: (id: string, payload: Partial<McpServerCreate>) =>
+    request<McpServer>(`/mcp-servers/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
+
+  list: () => request<McpServerListResponse>("/mcp-servers"),
+
+  get: (id: string) => request<McpServer>(`/mcp-servers/${id}`),
+
+  delete: (id: string) => request<void>(`/mcp-servers/${id}`, { method: "DELETE" }),
+};
+
+export const consumerApplicationApi = {
+  create: (payload: ConsumerApplicationCreate) =>
+    request<ConsumerApplicationCreated>("/consumer-applications", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  list: () => request<ConsumerApplicationListResponse>("/consumer-applications"),
+
+  delete: (id: string) => request<void>(`/consumer-applications/${id}`, { method: "DELETE" }),
 };
 
 interface StreamCallbacks {

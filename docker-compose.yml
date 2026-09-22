@@ -217,6 +217,8 @@ services:
     build: ./backend
     ports:
       - "8090:8090"
+    volumes:
+      - dataprotection_keys:/keys
     environment:
       ConnectionStrings__Default: "Host=postgres;Port=5432;Database=chatbot;Username=postgres;Password=postgres"
       AppSettings__OllamaBaseUrl: "http://host.docker.internal:11434"
@@ -294,6 +296,7 @@ volumes:
   postgres_data:
   weaviate_data:
   minio_data:
+  dataprotection_keys:
   langfuse_postgres_data:
   langfuse_clickhouse_data:
   langfuse_clickhouse_logs:

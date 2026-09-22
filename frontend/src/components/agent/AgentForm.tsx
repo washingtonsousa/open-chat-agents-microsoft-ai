@@ -15,6 +15,7 @@ import {
 } from "@mui/material";
 import { agentApi, modelsApi } from "@/services/api";
 import { KbMultiSelect } from "@/components/knowledge-base/KbMultiSelect";
+import { McpServerMultiSelect } from "@/components/mcp-server/McpServerMultiSelect";
 import type { Agent, AgentCreate, LLMProvider, ModelInfo } from "@/types";
 
 interface Props {
@@ -31,6 +32,7 @@ const DEFAULTS: AgentCreate = {
   max_tokens: null,
   system_prompt: "Você é um assistente prestativo e amigável.",
   knowledge_base_ids: [],
+  mcp_server_ids: [],
 };
 
 export function AgentForm({ agent, onSaved, onCancel }: Props) {
@@ -45,6 +47,7 @@ export function AgentForm({ agent, onSaved, onCancel }: Props) {
           max_tokens: agent.max_tokens,
           system_prompt: agent.system_prompt,
           knowledge_base_ids: agent.knowledge_bases.map((kb) => kb.id),
+          mcp_server_ids: agent.mcp_servers.map((s) => s.id),
         }
       : DEFAULTS
   );
@@ -207,6 +210,13 @@ export function AgentForm({ agent, onSaved, onCancel }: Props) {
             Bases de conhecimento (RAG)
           </Typography>
           <KbMultiSelect value={form.knowledge_base_ids} onChange={(ids) => set("knowledge_base_ids", ids)} />
+        </Box>
+
+        <Box>
+          <Typography variant="body2" sx={{ mb: 1, fontWeight: 500 }}>
+            Servidores MCP (ferramentas)
+          </Typography>
+          <McpServerMultiSelect value={form.mcp_server_ids} onChange={(ids) => set("mcp_server_ids", ids)} />
         </Box>
 
         {error && <Alert severity="error">{error}</Alert>}

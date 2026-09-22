@@ -12,11 +12,11 @@ using OpenChatAgents.Infrastructure.Telemetry;
 
 namespace OpenChatAgents.Infrastructure.Agents;
 
-public class ChatAgentFactory(IOptions<AppOptions> options) : IChatAgentFactory
+public class ChatAgentFactory(IOptions<AppOptions> options, IMcpToolFactory mcpToolFactory) : IChatAgentFactory
 {
     private readonly AppOptions _options = options.Value;
 
-    public AIAgent Build(Agent agent)
+    public AIAgent Build(Agent agent, IReadOnlyList<AITool>? tools = null)
     {
         var chatClient = BuildChatClient(agent);
 
@@ -28,6 +28,7 @@ public class ChatAgentFactory(IOptions<AppOptions> options) : IChatAgentFactory
                 Instructions = agent.SystemPrompt,
                 Temperature = (float)agent.Temperature,
                 MaxOutputTokens = agent.MaxTokens,
+                Tools = tools is { Count: > 0 } ? [.. tools] : null,
             },
         };
 
@@ -43,7 +44,16 @@ public class ChatAgentFactory(IOptions<AppOptions> options) : IChatAgentFactory
 
     public async IAsyncEnumerable<string> StreamAsync(Agent agent, IEnumerable<ChatMessage> messages)
     {
-        var aiAgent = Build(agent);
+        var mcpServers = agent.McpServerLinks
+            .Where(l => l.McpServer is not null)
+            .Select(l => l.McpServer!)
+            .ToList();
+
+        // A conexão MCP precisa ficar viva durante toda a invocação de tools, não só a listagem —
+        // por isso a sessão é criada por turno de chat e só descartada depois do streaming terminar.
+        await using var mcpSession = await mcpToolFactory.CreateSessionAsync(mcpServers);
+
+        var aiAgent = Build(agent, mcpSession.Tools);
         await foreach (var update in aiAgent.RunStreamingAsync(messages))
         {
             if (!string.IsNullOrEmpty(update.Text))

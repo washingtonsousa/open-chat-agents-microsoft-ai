@@ -13,6 +13,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<KbDocument> KbDocuments => Set<KbDocument>();
     public DbSet<KbChunkRef> KbChunkRefs => Set<KbChunkRef>();
     public DbSet<AgentKnowledgeBase> AgentKnowledgeBases => Set<AgentKnowledgeBase>();
+    public DbSet<McpServer> McpServers => Set<McpServer>();
+    public DbSet<AgentMcpServer> AgentMcpServers => Set<AgentMcpServer>();
+    public DbSet<ConsumerApplication> ConsumerApplications => Set<ConsumerApplication>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -138,6 +141,55 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                 .WithMany(k => k.AgentLinks)
                 .HasForeignKey(l => l.KnowledgeBaseId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<McpServer>(entity =>
+        {
+            entity.ToTable("mcp_servers");
+            entity.HasKey(s => s.Id);
+            entity.Property(s => s.Name).HasMaxLength(255).IsRequired();
+            entity.HasIndex(s => s.Name).IsUnique();
+            entity.Property(s => s.Url).HasMaxLength(2000).IsRequired();
+            entity.Property(s => s.AuthType).HasMaxLength(20).IsRequired();
+            entity.Property(s => s.CreatedAt).HasDefaultValueSql("now()");
+            entity.Property(s => s.UpdatedAt).HasDefaultValueSql("now()");
+
+            entity.HasOne(s => s.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(s => s.CreatedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<AgentMcpServer>(entity =>
+        {
+            entity.ToTable("agent_mcp_servers");
+            entity.HasKey(l => new { l.AgentId, l.McpServerId });
+
+            entity.HasOne(l => l.Agent)
+                .WithMany(a => a.McpServerLinks)
+                .HasForeignKey(l => l.AgentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(l => l.McpServer)
+                .WithMany(s => s.AgentLinks)
+                .HasForeignKey(l => l.McpServerId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ConsumerApplication>(entity =>
+        {
+            entity.ToTable("consumer_applications");
+            entity.HasKey(a => a.Id);
+            entity.Property(a => a.Name).HasMaxLength(255).IsRequired();
+            entity.Property(a => a.ClientId).HasMaxLength(100).IsRequired();
+            entity.HasIndex(a => a.ClientId).IsUnique();
+            entity.Property(a => a.ClientSecretHash).IsRequired();
+            entity.Property(a => a.CreatedAt).HasDefaultValueSql("now()");
+
+            entity.HasOne(a => a.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(a => a.CreatedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
     }
 }

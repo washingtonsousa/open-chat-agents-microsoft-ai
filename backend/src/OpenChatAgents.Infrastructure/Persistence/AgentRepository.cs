@@ -7,7 +7,7 @@ namespace OpenChatAgents.Infrastructure.Persistence;
 
 public class AgentRepository(AppDbContext db) : IAgentRepository
 {
-    public async Task<Agent> CreateAsync(string name, string provider, string llmModel, double temperature, int? maxTokens, string systemPrompt, Guid? createdByUserId, IEnumerable<Guid> knowledgeBaseIds)
+    public async Task<Agent> CreateAsync(string name, string provider, string llmModel, double temperature, int? maxTokens, string systemPrompt, Guid? createdByUserId, IEnumerable<Guid> knowledgeBaseIds, IEnumerable<Guid> mcpServerIds)
     {
         var agent = new Agent
         {
@@ -23,6 +23,7 @@ public class AgentRepository(AppDbContext db) : IAgentRepository
         await db.SaveChangesAsync();
 
         await SyncKnowledgeBasesAsync(agent.Id, knowledgeBaseIds);
+        await SyncMcpServersAsync(agent.Id, mcpServerIds);
 
         return (await GetByIdAsync(agent.Id))!;
     }
@@ -31,6 +32,7 @@ public class AgentRepository(AppDbContext db) : IAgentRepository
         db.Agents
             .Include(a => a.CreatedByUser)
             .Include(a => a.KnowledgeBaseLinks).ThenInclude(l => l.KnowledgeBase)
+            .Include(a => a.McpServerLinks).ThenInclude(l => l.McpServer)
             .FirstOrDefaultAsync(a => a.Id == agentId);
 
     public Task<Agent?> GetByNameAsync(string name) =>
@@ -40,6 +42,7 @@ public class AgentRepository(AppDbContext db) : IAgentRepository
         db.Agents
             .Include(a => a.CreatedByUser)
             .Include(a => a.KnowledgeBaseLinks).ThenInclude(l => l.KnowledgeBase)
+            .Include(a => a.McpServerLinks).ThenInclude(l => l.McpServer)
             .OrderByDescending(a => a.CreatedAt)
             .ToListAsync();
 
@@ -56,6 +59,9 @@ public class AgentRepository(AppDbContext db) : IAgentRepository
 
         if (update.KnowledgeBaseIds is not null)
             await SyncKnowledgeBasesAsync(agent.Id, update.KnowledgeBaseIds);
+
+        if (update.McpServerIds is not null)
+            await SyncMcpServersAsync(agent.Id, update.McpServerIds);
 
         return (await GetByIdAsync(agent.Id))!;
     }
@@ -76,6 +82,17 @@ public class AgentRepository(AppDbContext db) : IAgentRepository
 
         foreach (var kbId in knowledgeBaseIds.Distinct())
             db.AgentKnowledgeBases.Add(new AgentKnowledgeBase { AgentId = agentId, KnowledgeBaseId = kbId });
+
+        await db.SaveChangesAsync();
+    }
+
+    private async Task SyncMcpServersAsync(Guid agentId, IEnumerable<Guid> mcpServerIds)
+    {
+        var existingLinks = await db.AgentMcpServers.Where(l => l.AgentId == agentId).ToListAsync();
+        db.AgentMcpServers.RemoveRange(existingLinks);
+
+        foreach (var serverId in mcpServerIds.Distinct())
+            db.AgentMcpServers.Add(new AgentMcpServer { AgentId = agentId, McpServerId = serverId });
 
         await db.SaveChangesAsync();
     }

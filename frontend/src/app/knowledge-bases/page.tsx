@@ -86,7 +86,7 @@ function KnowledgeBasesContent() {
             <ArrowBackIcon fontSize="small" />
           </IconButton>
           <Typography variant="body2" sx={{ fontWeight: 500 }}>
-            Voltar ao chat
+            Painel
           </Typography>
         </Toolbar>
         <Divider />

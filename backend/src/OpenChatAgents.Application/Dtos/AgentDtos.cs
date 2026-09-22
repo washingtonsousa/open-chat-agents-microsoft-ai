@@ -24,6 +24,8 @@ public class AgentCreate
     public string SystemPrompt { get; set; } = string.Empty;
 
     public Guid[] KnowledgeBaseIds { get; set; } = [];
+
+    public Guid[] McpServerIds { get; set; } = [];
 }
 
 public class AgentUpdate
@@ -47,9 +49,17 @@ public class AgentUpdate
     public string? SystemPrompt { get; set; }
 
     public Guid[]? KnowledgeBaseIds { get; set; }
+
+    public Guid[]? McpServerIds { get; set; }
 }
 
 public class AgentKnowledgeBaseSummary
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+}
+
+public class AgentMcpServerSummary
 {
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
@@ -66,6 +76,7 @@ public class AgentResponse
     public string SystemPrompt { get; set; } = string.Empty;
     public UserResponse? CreatedBy { get; set; }
     public List<AgentKnowledgeBaseSummary> KnowledgeBases { get; set; } = [];
+    public List<AgentMcpServerSummary> McpServers { get; set; } = [];
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 
@@ -82,6 +93,9 @@ public class AgentResponse
         KnowledgeBases = [.. agent.KnowledgeBaseLinks
             .Where(l => l.KnowledgeBase is not null)
             .Select(l => new AgentKnowledgeBaseSummary { Id = l.KnowledgeBase!.Id, Name = l.KnowledgeBase.Name })],
+        McpServers = [.. agent.McpServerLinks
+            .Where(l => l.McpServer is not null)
+            .Select(l => new AgentMcpServerSummary { Id = l.McpServer!.Id, Name = l.McpServer.Name })],
         CreatedAt = agent.CreatedAt,
         UpdatedAt = agent.UpdatedAt,
     };
