@@ -8,8 +8,8 @@ Porta em **.NET** do POC [open-chat-agents](../Chat%20Bot%20Com%20Rag%20e%20Fron
 
 | Camada | Tecnologia |
 |--------|-----------|
-| Frontend | Next.js 15, React 19, Tailwind CSS |
-| Backend / Worker | ASP.NET Core 10 + Worker Service, C# |
+| Frontend | Next.js 15, React 19, **MUI (Material-UI)** como design system (`@mui/material-nextjs` para SSR no App Router; Tailwind ainda instalado mas não é mais o principal) |
+| Backend / Worker | ASP.NET Core 10 + Worker Service, C# — 5 projetos em camadas DDD (Domain → Application → Infrastructure → Api/Worker) |
 | Orquestração de LLM | [Microsoft Agent Framework](https://github.com/microsoft/agent-framework) (`Microsoft.Agents.AI`) |
 | LLM / Embeddings | Ollama (`OllamaSharp`) ou AWS Bedrock (`AWSSDK.Extensions.Bedrock.MEAI`) |
 | Banco relacional | PostgreSQL 16 + Entity Framework Core 10 |
@@ -18,6 +18,7 @@ Porta em **.NET** do POC [open-chat-agents](../Chat%20Bot%20Com%20Rag%20e%20Fron
 | Mensageria / eventos | RabbitMQ (alimentado pelas *bucket notifications* nativas do MinIO) |
 | Hash de senha | Argon2id (`Konscious.Security.Cryptography.Argon2`) |
 | Extração de texto | PdfPig (PDF), `DocumentFormat.OpenXml` (DOCX), leitura direta (texto/markdown) |
+| Observabilidade | OpenTelemetry (traces) → **Langfuse** self-hosted via OTLP/HTTP (spans de agente, chamada ao modelo com tokens/latência, retrieval de KB, tags de sessão/usuário) |
 
 ---
 
