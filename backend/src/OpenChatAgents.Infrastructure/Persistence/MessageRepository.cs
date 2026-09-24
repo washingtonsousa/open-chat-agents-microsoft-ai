@@ -7,13 +7,23 @@ namespace OpenChatAgents.Infrastructure.Persistence;
 
 public class MessageRepository(AppDbContext db) : IMessageRepository
 {
-    public async Task<Message> CreateAsync(Guid sessionId, string role, string content)
+    public async Task<Message> CreateAsync(Guid sessionId, string role, string content, string? imageObjectKey = null, string? imageContentType = null)
     {
-        var message = new Message { SessionId = sessionId, Role = role, Content = content };
+        var message = new Message
+        {
+            SessionId = sessionId,
+            Role = role,
+            Content = content,
+            ImageObjectKey = imageObjectKey,
+            ImageContentType = imageContentType,
+        };
         db.Messages.Add(message);
         await db.SaveChangesAsync();
         return message;
     }
+
+    public Task<Message?> GetByIdAsync(Guid id) =>
+        db.Messages.FirstOrDefaultAsync(m => m.Id == id);
 
     public Task<List<Message>> ListBySessionAsync(Guid sessionId) =>
         db.Messages

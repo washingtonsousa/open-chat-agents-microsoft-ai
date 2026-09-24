@@ -19,5 +19,5 @@ public interface IMcpToolFactory
     /// Connects to every given server and lists its tools. A server that fails to connect or
     /// authenticate is skipped (logged, not thrown) so one bad MCP server never breaks the chat.
     /// </summary>
-    Task<IMcpToolSession> CreateSessionAsync(IEnumerable<McpServer> servers, CancellationToken cancellationToken = default);
+    Task<IMcpToolSession> CreateSessionAsync(IEnumerable<McpServer> servers, BuiltInToolContext context, CancellationToken cancellationToken = default);
 }

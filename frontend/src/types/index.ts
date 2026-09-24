@@ -84,6 +84,17 @@ export interface AgentKnowledgeBaseSummary {
 export interface AgentMcpServerSummary {
   id: string;
   name: string;
+  kind: McpServerKind;
+}
+
+export interface AgentSubAgentSummary {
+  id: string;
+  name: string;
+}
+
+export interface AgentSkillSummary {
+  id: string;
+  name: string;
 }
 
 export interface Agent {
@@ -97,6 +108,8 @@ export interface Agent {
   created_by: User | null;
   knowledge_bases: AgentKnowledgeBaseSummary[];
   mcp_servers: AgentMcpServerSummary[];
+  sub_agents: AgentSubAgentSummary[];
+  skills: AgentSkillSummary[];
   created_at: string;
   updated_at: string;
 }
@@ -110,17 +123,23 @@ export interface AgentCreate {
   system_prompt: string;
   knowledge_base_ids: string[];
   mcp_server_ids: string[];
+  sub_agent_ids: string[];
+  skill_ids: string[];
 }
 
 export type McpAuthType = "none" | "bearer-token" | "header";
+export type McpServerKind = "external" | "built-in";
 
 export interface McpServer {
   id: string;
   name: string;
-  url: string;
+  description: string;
+  kind: McpServerKind;
+  url: string | null;
   auth_type: McpAuthType;
   auth_header_name: string | null;
   has_secret: boolean;
+  built_in_key: string | null;
   created_by: User | null;
   created_at: string;
   updated_at: string;
@@ -128,6 +147,7 @@ export interface McpServer {
 
 export interface McpServerCreate {
   name: string;
+  description?: string;
   url: string;
   auth_type: McpAuthType;
   auth_header_name?: string | null;
@@ -136,6 +156,27 @@ export interface McpServerCreate {
 
 export interface McpServerListResponse {
   mcp_servers: McpServer[];
+  total: number;
+}
+
+export interface Skill {
+  id: string;
+  name: string;
+  description: string;
+  content: string;
+  created_by: User | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SkillCreate {
+  name: string;
+  description: string;
+  content: string;
+}
+
+export interface SkillListResponse {
+  skills: Skill[];
   total: number;
 }
 
@@ -194,6 +235,7 @@ export interface Message {
   session_id: string;
   role: "user" | "assistant";
   content: string;
+  image_url: string | null;
   created_at: string;
 }
 

@@ -12,6 +12,7 @@ using OpenChatAgents.Domain.Options;
 using OpenChatAgents.Domain.Repositories;
 using OpenChatAgents.Domain.VectorStore;
 using OpenChatAgents.Infrastructure.Agents;
+using OpenChatAgents.Infrastructure.BuiltInTools;
 using OpenChatAgents.Infrastructure.Data;
 using OpenChatAgents.Infrastructure.Mcp;
 using OpenChatAgents.Infrastructure.Persistence;
@@ -87,6 +88,7 @@ builder.Services.AddScoped<IKnowledgeBaseRepository, KnowledgeBaseRepository>();
 builder.Services.AddScoped<IKbDocumentRepository, KbDocumentRepository>();
 builder.Services.AddScoped<IMcpServerRepository, McpServerRepository>();
 builder.Services.AddScoped<IConsumerApplicationRepository, ConsumerApplicationRepository>();
+builder.Services.AddScoped<ISkillRepository, SkillRepository>();
 
 // Application services (casos de uso)
 builder.Services.AddScoped<AgentService>();
@@ -98,16 +100,25 @@ builder.Services.AddScoped<KnowledgeBaseService>();
 builder.Services.AddScoped<KbRetrievalService>();
 builder.Services.AddScoped<McpServerService>();
 builder.Services.AddScoped<ConsumerApplicationService>();
+builder.Services.AddScoped<SkillService>();
 
 // Infrastructure (implementações concretas das portas do Domain)
-builder.Services.AddSingleton<IChatAgentFactory, ChatAgentFactory>();
+// IChatAgentFactory/IMcpToolFactory são Scoped (não Singleton) porque, transitivamente, dependem
+// de IBuiltInToolProvider implementações Scoped (ex.: SkillCreatorToolProvider -> ISkillRepository
+// -> AppDbContext) — um Singleton capturaria esse DbContext pra sempre, o que é um bug sério de DI.
+builder.Services.AddScoped<IChatAgentFactory, ChatAgentFactory>();
+builder.Services.AddScoped<IMcpToolFactory, McpToolFactory>();
 builder.Services.AddSingleton<IEmbeddingClientFactory, EmbeddingClientFactory>();
 builder.Services.AddSingleton<BedrockModelCatalog>();
 builder.Services.AddSingleton<IPasswordHasher, Argon2PasswordHasher>();
 builder.Services.AddSingleton<IObjectStore, MinioObjectStore>();
 builder.Services.AddSingleton<IKbVectorStore, KbVectorStore>();
 builder.Services.AddSingleton<ISecretProtector, DataProtectionSecretProtector>();
-builder.Services.AddSingleton<IMcpToolFactory, McpToolFactory>();
+
+// Ferramentas embutidas (rodam nativas no mesmo processo, mas aparecem como "servidor MCP" na UI)
+builder.Services.AddSingleton<IBuiltInToolProvider, FilesystemToolProvider>();
+builder.Services.AddSingleton<IBuiltInToolProvider, DateTimeToolProvider>();
+builder.Services.AddScoped<IBuiltInToolProvider, SkillCreatorToolProvider>();
 
 builder.Services.AddDataProtection()
     .PersistKeysToFileSystem(new DirectoryInfo("/keys"))
@@ -144,6 +155,9 @@ using (var scope = app.Services.CreateScope())
 
     var userService = scope.ServiceProvider.GetRequiredService<UserService>();
     await userService.EnsureDefaultAdminAsync();
+
+    var mcpServerService = scope.ServiceProvider.GetRequiredService<McpServerService>();
+    await mcpServerService.EnsureBuiltInServersAsync();
 }
 
 app.UseCors();

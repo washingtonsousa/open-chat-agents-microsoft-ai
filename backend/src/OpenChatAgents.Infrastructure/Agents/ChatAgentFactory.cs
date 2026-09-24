@@ -1,3 +1,4 @@
+using System.Text;
 using Amazon;
 using Amazon.BedrockRuntime;
 using Amazon.Runtime;
@@ -25,7 +26,7 @@ public class ChatAgentFactory(IOptions<AppOptions> options, IMcpToolFactory mcpT
             Name = agent.Name,
             ChatOptions = new ChatOptions
             {
-                Instructions = agent.SystemPrompt,
+                Instructions = BuildInstructions(agent),
                 Temperature = (float)agent.Temperature,
                 MaxOutputTokens = agent.MaxTokens,
                 Tools = tools is { Count: > 0 } ? [.. tools] : null,
@@ -42,8 +43,10 @@ public class ChatAgentFactory(IOptions<AppOptions> options, IMcpToolFactory mcpT
             .Build();
     }
 
-    public async IAsyncEnumerable<string> StreamAsync(Agent agent, IEnumerable<ChatMessage> messages)
+    public async IAsyncEnumerable<string> StreamAsync(Agent agent, IEnumerable<ChatMessage> messages, Guid userId)
     {
+        var context = new BuiltInToolContext(userId);
+
         var mcpServers = agent.McpServerLinks
             .Where(l => l.McpServer is not null)
             .Select(l => l.McpServer!)
@@ -51,14 +54,71 @@ public class ChatAgentFactory(IOptions<AppOptions> options, IMcpToolFactory mcpT
 
         // A conexão MCP precisa ficar viva durante toda a invocação de tools, não só a listagem —
         // por isso a sessão é criada por turno de chat e só descartada depois do streaming terminar.
-        await using var mcpSession = await mcpToolFactory.CreateSessionAsync(mcpServers);
+        await using var mcpSession = await mcpToolFactory.CreateSessionAsync(mcpServers, context);
 
-        var aiAgent = Build(agent, mcpSession.Tools);
-        await foreach (var update in aiAgent.RunStreamingAsync(messages))
+        var tools = new List<AITool>(mcpSession.Tools);
+        var subAgentSessions = new List<IMcpToolSession>();
+
+        try
         {
-            if (!string.IsNullOrEmpty(update.Text))
-                yield return update.Text;
+            // Sub-agentes viram ferramentas (orquestrador). De propósito, só um nível: as próprias
+            // ligações de sub-agente do FILHO nunca são expandidas — é isso que impede recursão infinita.
+            foreach (var link in agent.SubAgentLinks)
+            {
+                if (link.SubAgent is null) continue;
+                var subAgent = link.SubAgent;
+
+                var subServers = subAgent.McpServerLinks
+                    .Where(l => l.McpServer is not null)
+                    .Select(l => l.McpServer!)
+                    .ToList();
+                var subSession = await mcpToolFactory.CreateSessionAsync(subServers, context);
+                subAgentSessions.Add(subSession);
+
+                var subAiAgent = Build(subAgent, subSession.Tools);
+                tools.Add(subAiAgent.AsAIFunction(new AIFunctionFactoryOptions
+                {
+                    Name = Slugify(subAgent.Name),
+                    Description = $"Consulta o agente '{subAgent.Name}'. {subAgent.SystemPrompt}",
+                }));
+            }
+
+            var aiAgent = Build(agent, tools);
+            await foreach (var update in aiAgent.RunStreamingAsync(messages))
+            {
+                if (!string.IsNullOrEmpty(update.Text))
+                    yield return update.Text;
+            }
         }
+        finally
+        {
+            foreach (var session in subAgentSessions)
+                await session.DisposeAsync();
+        }
+    }
+
+    private static string BuildInstructions(Agent agent)
+    {
+        var skills = agent.SkillLinks
+            .Where(l => l.Skill is not null)
+            .Select(l => l.Skill!)
+            .ToList();
+
+        if (skills.Count == 0)
+            return agent.SystemPrompt;
+
+        var sb = new StringBuilder(agent.SystemPrompt);
+        foreach (var skill in skills)
+        {
+            sb.Append("\n\n---\n\n## Skill: ").Append(skill.Name).Append('\n').Append(skill.Content);
+        }
+        return sb.ToString();
+    }
+
+    private static string Slugify(string name)
+    {
+        var slug = new string([.. name.ToLowerInvariant().Select(c => char.IsLetterOrDigit(c) ? c : '_')]);
+        return $"ask_{slug}";
     }
 
     private IChatClient BuildChatClient(Agent agent)

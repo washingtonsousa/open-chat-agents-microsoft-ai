@@ -29,6 +29,7 @@ import LogoutIcon from "@mui/icons-material/Logout";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutlineOutlined";
 import DashboardIcon from "@mui/icons-material/DashboardOutlined";
 import ExtensionIcon from "@mui/icons-material/Extension";
+import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import ApiIcon from "@mui/icons-material/Api";
 import { useCurrentUser } from "@/components/auth/AuthGuard";
 import { authStorage } from "@/services/api";
@@ -214,6 +215,12 @@ export function SessionSidebar({
             <ExtensionIcon fontSize="small" color="action" />
           </ListItemAvatar>
           <ListItemText primary="Servidores MCP" slotProps={{ primary: { sx: { fontSize: 13 } } }} />
+        </ListItemButton>
+        <ListItemButton component={Link} href="/skills">
+          <ListItemAvatar sx={{ minWidth: 36 }}>
+            <AutoAwesomeIcon fontSize="small" color="action" />
+          </ListItemAvatar>
+          <ListItemText primary="Skills" slotProps={{ primary: { sx: { fontSize: 13 } } }} />
         </ListItemButton>
         {user?.is_admin && (
           <ListItemButton component={Link} href="/admin/users">

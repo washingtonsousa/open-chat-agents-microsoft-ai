@@ -9,6 +9,7 @@ namespace OpenChatAgents.Domain.Repositories;
 /// </summary>
 public record McpServerUpdateFields(
     string? Name,
+    string? Description,
     string? Url,
     string? AuthType,
     string? AuthHeaderName,

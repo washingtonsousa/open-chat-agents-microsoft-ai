@@ -14,6 +14,7 @@ interface Props {
 
 const DEFAULTS: McpServerCreate = {
   name: "",
+  description: "",
   url: "",
   auth_type: "none",
   auth_header_name: "",
@@ -25,7 +26,8 @@ export function McpServerForm({ onSaved, onCancel, editing }: Props) {
     editing
       ? {
           name: editing.name,
-          url: editing.url,
+          description: editing.description,
+          url: editing.url ?? "",
           auth_type: editing.auth_type,
           auth_header_name: editing.auth_header_name ?? "",
           secret: "",
@@ -65,6 +67,14 @@ export function McpServerForm({ onSaved, onCancel, editing }: Props) {
           value={form.name}
           onChange={(e) => set("name", e.target.value)}
           placeholder="Ex: GitHub"
+        />
+
+        <TextField
+          label="Descrição"
+          fullWidth
+          value={form.description ?? ""}
+          onChange={(e) => set("description", e.target.value)}
+          placeholder="Uma linha explicando o que esse servidor oferece"
         />
 
         <TextField

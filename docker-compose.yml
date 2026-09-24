@@ -219,8 +219,10 @@ services:
       - "8090:8090"
     volumes:
       - dataprotection_keys:/keys
+      - agent_filesystem:/agent-files
     environment:
       ConnectionStrings__Default: "Host=postgres;Port=5432;Database=chatbot;Username=postgres;Password=postgres"
+      AppSettings__Filesystem__RootPath: "/agent-files"
       AppSettings__OllamaBaseUrl: "http://host.docker.internal:11434"
       AppSettings__LlmModel: "gemma3"
       AppSettings__CorsOrigins__0: "http://localhost:3000"
@@ -297,6 +299,7 @@ volumes:
   weaviate_data:
   minio_data:
   dataprotection_keys:
+  agent_filesystem:
   langfuse_postgres_data:
   langfuse_clickhouse_data:
   langfuse_clickhouse_logs:

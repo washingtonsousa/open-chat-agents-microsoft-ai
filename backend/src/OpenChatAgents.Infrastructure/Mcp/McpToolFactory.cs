@@ -6,20 +6,35 @@ using OpenChatAgents.Domain.Models;
 
 namespace OpenChatAgents.Infrastructure.Mcp;
 
-public class McpToolFactory(ISecretProtector secretProtector, ILogger<McpToolFactory> logger) : IMcpToolFactory
+public class McpToolFactory(
+    ISecretProtector secretProtector,
+    IEnumerable<IBuiltInToolProvider> builtInToolProviders,
+    ILogger<McpToolFactory> logger) : IMcpToolFactory
 {
-    public async Task<IMcpToolSession> CreateSessionAsync(IEnumerable<McpServer> servers, CancellationToken cancellationToken = default)
+    public async Task<IMcpToolSession> CreateSessionAsync(IEnumerable<McpServer> servers, BuiltInToolContext context, CancellationToken cancellationToken = default)
     {
         var clients = new List<McpClient>();
         var tools = new List<AITool>();
 
         foreach (var server in servers)
         {
+            if (server.Kind == McpServerKind.BuiltIn)
+            {
+                var provider = builtInToolProviders.FirstOrDefault(p => p.Key == server.BuiltInKey);
+                if (provider is null)
+                {
+                    logger.LogWarning("Nenhum provedor de ferramenta embutida encontrado para a chave '{Key}'.", server.BuiltInKey);
+                    continue;
+                }
+                tools.AddRange(provider.GetTools(context));
+                continue;
+            }
+
             try
             {
                 var transport = new HttpClientTransport(new HttpClientTransportOptions
                 {
-                    Endpoint = new Uri(server.Url),
+                    Endpoint = new Uri(server.Url!),
                     AdditionalHeaders = BuildHeaders(server),
                 });
 

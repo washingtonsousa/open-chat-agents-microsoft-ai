@@ -24,6 +24,7 @@ import AddIcon from "@mui/icons-material/Add";
 import SmartToyIcon from "@mui/icons-material/SmartToy";
 import StorageIcon from "@mui/icons-material/Storage";
 import ExtensionIcon from "@mui/icons-material/Extension";
+import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutlineOutlined";
 import GroupIcon from "@mui/icons-material/Group";
 import ApiIcon from "@mui/icons-material/Api";
@@ -33,8 +34,9 @@ import { AuthGuard, useCurrentUser } from "@/components/auth/AuthGuard";
 import { AgentModal } from "@/components/agent/AgentModal";
 import { KnowledgeBaseModal } from "@/components/knowledge-base/KnowledgeBaseModal";
 import { McpServerModal } from "@/components/mcp-server/McpServerModal";
-import { agentApi, authStorage, knowledgeBaseApi, mcpServerApi, sessionApi } from "@/services/api";
-import type { Agent, KnowledgeBase, McpServer, Session } from "@/types";
+import { SkillModal } from "@/components/skill/SkillModal";
+import { agentApi, authStorage, knowledgeBaseApi, mcpServerApi, sessionApi, skillApi } from "@/services/api";
+import type { Agent, KnowledgeBase, McpServer, Session, Skill } from "@/types";
 
 const DRAWER_WIDTH = 288;
 
@@ -53,23 +55,27 @@ function DashboardContent() {
   const [kbs, setKbs] = useState<KnowledgeBase[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [mcpServers, setMcpServers] = useState<McpServer[]>([]);
+  const [skills, setSkills] = useState<Skill[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [showAgentModal, setShowAgentModal] = useState(false);
   const [showKbModal, setShowKbModal] = useState(false);
   const [showMcpModal, setShowMcpModal] = useState(false);
+  const [showSkillModal, setShowSkillModal] = useState(false);
 
   async function load() {
-    const [a, k, s, m] = await Promise.all([
+    const [a, k, s, m, sk] = await Promise.all([
       agentApi.list(),
       knowledgeBaseApi.list(),
       sessionApi.list(),
       mcpServerApi.list(),
+      skillApi.list(),
     ]);
     setAgents(a.agents);
     setKbs(k.knowledge_bases);
     setSessions(s.sessions);
     setMcpServers(m.mcp_servers);
+    setSkills(sk.skills);
     setLoading(false);
   }
 
@@ -87,6 +93,7 @@ function DashboardContent() {
     { label: "Bases de conhecimento", count: kbs.length, icon: <StorageIcon />, href: "/knowledge-bases" },
     { label: "Conversas", count: sessions.length, icon: <ChatBubbleOutlineIcon />, href: "/chat" },
     { label: "Servidores MCP", count: mcpServers.length, icon: <ExtensionIcon />, href: "/mcp-servers" },
+    { label: "Skills", count: skills.length, icon: <AutoAwesomeIcon />, href: "/skills" },
   ];
 
   return (
@@ -130,6 +137,12 @@ function DashboardContent() {
               <ExtensionIcon fontSize="small" color="action" />
             </ListItemAvatar>
             <ListItemText primary="Servidores MCP" slotProps={{ primary: { sx: { fontSize: 13 } } }} />
+          </ListItemButton>
+          <ListItemButton component={Link} href="/skills">
+            <ListItemAvatar sx={{ minWidth: 36 }}>
+              <AutoAwesomeIcon fontSize="small" color="action" />
+            </ListItemAvatar>
+            <ListItemText primary="Skills" slotProps={{ primary: { sx: { fontSize: 13 } } }} />
           </ListItemButton>
           {user?.is_admin && (
             <ListItemButton component={Link} href="/admin/users">
@@ -216,6 +229,9 @@ function DashboardContent() {
           <Button variant="outlined" startIcon={<ExtensionIcon />} onClick={() => setShowMcpModal(true)}>
             Novo servidor MCP
           </Button>
+          <Button variant="outlined" startIcon={<AutoAwesomeIcon />} onClick={() => setShowSkillModal(true)}>
+            Nova skill
+          </Button>
         </Stack>
 
         <Typography variant="subtitle2" sx={{ mb: 1.5 }}>
@@ -279,6 +295,15 @@ function DashboardContent() {
             load();
           }}
           onClose={() => setShowMcpModal(false)}
+        />
+      )}
+      {showSkillModal && (
+        <SkillModal
+          onSaved={() => {
+            setShowSkillModal(false);
+            load();
+          }}
+          onClose={() => setShowSkillModal(false)}
         />
       )}
     </Box>

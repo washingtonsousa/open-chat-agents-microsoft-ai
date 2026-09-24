@@ -22,7 +22,9 @@ public class AgentService(IAgentRepository repo)
             payload.SystemPrompt,
             createdByUserId,
             payload.KnowledgeBaseIds,
-            payload.McpServerIds);
+            payload.McpServerIds,
+            payload.SubAgentIds,
+            payload.SkillIds);
     }
 
     public async Task<Models.Agent> GetAgentAsync(Guid agentId)
@@ -45,6 +47,9 @@ public class AgentService(IAgentRepository repo)
                 throw ApiException.Conflict($"Já existe um agente com o nome '{payload.Name}'.");
         }
 
+        if (payload.SubAgentIds?.Contains(agentId) == true)
+            throw ApiException.Conflict("Um agente não pode se referenciar como seu próprio sub-agente.");
+
         var update = new AgentUpdateFields(
             payload.Name,
             payload.Provider,
@@ -53,7 +58,9 @@ public class AgentService(IAgentRepository repo)
             payload.MaxTokens,
             payload.SystemPrompt,
             payload.KnowledgeBaseIds,
-            payload.McpServerIds);
+            payload.McpServerIds,
+            payload.SubAgentIds,
+            payload.SkillIds);
 
         return await repo.UpdateAsync(agent, update);
     }

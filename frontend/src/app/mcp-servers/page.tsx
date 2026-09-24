@@ -115,30 +115,44 @@ function McpServersContent() {
               Nenhum servidor cadastrado ainda.
             </Typography>
           ) : (
-            servers.map((server) => (
-              <ListItemButton key={server.id} onClick={() => setEditing(server)}>
-                <ListItemAvatar sx={{ minWidth: 36 }}>
-                  <ExtensionIcon fontSize="small" color="secondary" />
-                </ListItemAvatar>
-                <ListItemText
-                  primary={server.name}
-                  secondary={AUTH_LABEL[server.auth_type]}
-                  slotProps={{ primary: { noWrap: true, sx: { fontSize: 13, fontWeight: 500 } } }}
-                />
-                <ListItemSecondaryAction>
-                  <IconButton
-                    size="small"
-                    edge="end"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDelete(server.id);
-                    }}
-                  >
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
-                </ListItemSecondaryAction>
-              </ListItemButton>
-            ))
+            servers.map((server) => {
+              const isBuiltIn = server.kind === "built-in";
+              return (
+                <ListItemButton key={server.id} onClick={() => !isBuiltIn && setEditing(server)}>
+                  <ListItemAvatar sx={{ minWidth: 36 }}>
+                    <ExtensionIcon fontSize="small" color="secondary" />
+                  </ListItemAvatar>
+                  <ListItemText
+                    primary={
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
+                        <Typography noWrap sx={{ fontSize: 13, fontWeight: 500 }}>
+                          {server.name}
+                        </Typography>
+                        {isBuiltIn && (
+                          <Chip label="embutido" size="small" color="primary" sx={{ height: 16, fontSize: 9 }} />
+                        )}
+                      </Box>
+                    }
+                    secondary={server.description || AUTH_LABEL[server.auth_type]}
+                    slotProps={{ secondary: { noWrap: true, sx: { fontSize: 11 } } }}
+                  />
+                  {!isBuiltIn && (
+                    <ListItemSecondaryAction>
+                      <IconButton
+                        size="small"
+                        edge="end"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(server.id);
+                        }}
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </ListItemSecondaryAction>
+                  )}
+                </ListItemButton>
+              );
+            })
           )}
         </List>
 

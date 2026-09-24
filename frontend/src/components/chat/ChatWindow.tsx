@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Alert, Avatar, Box, Paper, Typography } from "@mui/material";
 import SmartToyIcon from "@mui/icons-material/SmartToy";
-import { chatApi } from "@/services/api";
+import { chatApi, type ChatImageAttachment } from "@/services/api";
 import type { Message } from "@/types";
 import { ChatInput } from "./ChatInput";
 import { MessageBubble } from "./MessageBubble";
@@ -33,22 +33,27 @@ export function ChatWindow({ sessionId }: Props) {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, streamingContent]);
 
-  async function handleSend(text: string) {
+  async function handleSend(text: string, image?: ChatImageAttachment) {
     setLoading(true);
     setError(null);
     setStreamingContent("");
 
     try {
-      await chatApi.stream(sessionId, text, {
-        onUserMessage: (msg) =>
-          setMessages((prev) => [...prev, msg]),
-        onChunk: (chunk) =>
-          setStreamingContent((prev) => (prev ?? "") + chunk),
-        onDone: (msg) => {
-          setMessages((prev) => [...prev, msg]);
-          setStreamingContent(null);
+      await chatApi.stream(
+        sessionId,
+        text,
+        {
+          onUserMessage: (msg) =>
+            setMessages((prev) => [...prev, msg]),
+          onChunk: (chunk) =>
+            setStreamingContent((prev) => (prev ?? "") + chunk),
+          onDone: (msg) => {
+            setMessages((prev) => [...prev, msg]);
+            setStreamingContent(null);
+          },
         },
-      });
+        image
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro ao enviar mensagem.");
       setStreamingContent(null);

@@ -7,7 +7,7 @@ namespace OpenChatAgents.Infrastructure.Persistence;
 
 public class AgentRepository(AppDbContext db) : IAgentRepository
 {
-    public async Task<Agent> CreateAsync(string name, string provider, string llmModel, double temperature, int? maxTokens, string systemPrompt, Guid? createdByUserId, IEnumerable<Guid> knowledgeBaseIds, IEnumerable<Guid> mcpServerIds)
+    public async Task<Agent> CreateAsync(string name, string provider, string llmModel, double temperature, int? maxTokens, string systemPrompt, Guid? createdByUserId, IEnumerable<Guid> knowledgeBaseIds, IEnumerable<Guid> mcpServerIds, IEnumerable<Guid> subAgentIds, IEnumerable<Guid> skillIds)
     {
         var agent = new Agent
         {
@@ -24,6 +24,8 @@ public class AgentRepository(AppDbContext db) : IAgentRepository
 
         await SyncKnowledgeBasesAsync(agent.Id, knowledgeBaseIds);
         await SyncMcpServersAsync(agent.Id, mcpServerIds);
+        await SyncSubAgentsAsync(agent.Id, subAgentIds);
+        await SyncSkillsAsync(agent.Id, skillIds);
 
         return (await GetByIdAsync(agent.Id))!;
     }
@@ -33,6 +35,8 @@ public class AgentRepository(AppDbContext db) : IAgentRepository
             .Include(a => a.CreatedByUser)
             .Include(a => a.KnowledgeBaseLinks).ThenInclude(l => l.KnowledgeBase)
             .Include(a => a.McpServerLinks).ThenInclude(l => l.McpServer)
+            .Include(a => a.SubAgentLinks).ThenInclude(l => l.SubAgent)
+            .Include(a => a.SkillLinks).ThenInclude(l => l.Skill)
             .FirstOrDefaultAsync(a => a.Id == agentId);
 
     public Task<Agent?> GetByNameAsync(string name) =>
@@ -43,6 +47,8 @@ public class AgentRepository(AppDbContext db) : IAgentRepository
             .Include(a => a.CreatedByUser)
             .Include(a => a.KnowledgeBaseLinks).ThenInclude(l => l.KnowledgeBase)
             .Include(a => a.McpServerLinks).ThenInclude(l => l.McpServer)
+            .Include(a => a.SubAgentLinks).ThenInclude(l => l.SubAgent)
+            .Include(a => a.SkillLinks).ThenInclude(l => l.Skill)
             .OrderByDescending(a => a.CreatedAt)
             .ToListAsync();
 
@@ -62,6 +68,12 @@ public class AgentRepository(AppDbContext db) : IAgentRepository
 
         if (update.McpServerIds is not null)
             await SyncMcpServersAsync(agent.Id, update.McpServerIds);
+
+        if (update.SubAgentIds is not null)
+            await SyncSubAgentsAsync(agent.Id, update.SubAgentIds);
+
+        if (update.SkillIds is not null)
+            await SyncSkillsAsync(agent.Id, update.SkillIds);
 
         return (await GetByIdAsync(agent.Id))!;
     }
@@ -93,6 +105,28 @@ public class AgentRepository(AppDbContext db) : IAgentRepository
 
         foreach (var serverId in mcpServerIds.Distinct())
             db.AgentMcpServers.Add(new AgentMcpServer { AgentId = agentId, McpServerId = serverId });
+
+        await db.SaveChangesAsync();
+    }
+
+    private async Task SyncSubAgentsAsync(Guid agentId, IEnumerable<Guid> subAgentIds)
+    {
+        var existingLinks = await db.AgentSubAgents.Where(l => l.AgentId == agentId).ToListAsync();
+        db.AgentSubAgents.RemoveRange(existingLinks);
+
+        foreach (var subAgentId in subAgentIds.Distinct().Where(id => id != agentId))
+            db.AgentSubAgents.Add(new AgentSubAgent { AgentId = agentId, SubAgentId = subAgentId });
+
+        await db.SaveChangesAsync();
+    }
+
+    private async Task SyncSkillsAsync(Guid agentId, IEnumerable<Guid> skillIds)
+    {
+        var existingLinks = await db.AgentSkills.Where(l => l.AgentId == agentId).ToListAsync();
+        db.AgentSkills.RemoveRange(existingLinks);
+
+        foreach (var skillId in skillIds.Distinct())
+            db.AgentSkills.Add(new AgentSkill { AgentId = agentId, SkillId = skillId });
 
         await db.SaveChangesAsync();
     }

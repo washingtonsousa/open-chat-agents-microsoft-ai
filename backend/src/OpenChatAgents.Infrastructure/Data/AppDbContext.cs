@@ -16,6 +16,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<McpServer> McpServers => Set<McpServer>();
     public DbSet<AgentMcpServer> AgentMcpServers => Set<AgentMcpServer>();
     public DbSet<ConsumerApplication> ConsumerApplications => Set<ConsumerApplication>();
+    public DbSet<Skill> Skills => Set<Skill>();
+    public DbSet<AgentSkill> AgentSkills => Set<AgentSkill>();
+    public DbSet<AgentSubAgent> AgentSubAgents => Set<AgentSubAgent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -149,8 +152,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasKey(s => s.Id);
             entity.Property(s => s.Name).HasMaxLength(255).IsRequired();
             entity.HasIndex(s => s.Name).IsUnique();
-            entity.Property(s => s.Url).HasMaxLength(2000).IsRequired();
+            entity.Property(s => s.Kind).HasMaxLength(20).IsRequired();
+            entity.Property(s => s.Url).HasMaxLength(2000);
             entity.Property(s => s.AuthType).HasMaxLength(20).IsRequired();
+            entity.Property(s => s.BuiltInKey).HasMaxLength(100);
             entity.Property(s => s.CreatedAt).HasDefaultValueSql("now()");
             entity.Property(s => s.UpdatedAt).HasDefaultValueSql("now()");
 
@@ -190,6 +195,56 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                 .WithMany()
                 .HasForeignKey(a => a.CreatedByUserId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<Skill>(entity =>
+        {
+            entity.ToTable("skills");
+            entity.HasKey(s => s.Id);
+            entity.Property(s => s.Name).HasMaxLength(255).IsRequired();
+            entity.HasIndex(s => s.Name).IsUnique();
+            entity.Property(s => s.Description).IsRequired();
+            entity.Property(s => s.Content).IsRequired();
+            entity.Property(s => s.CreatedAt).HasDefaultValueSql("now()");
+            entity.Property(s => s.UpdatedAt).HasDefaultValueSql("now()");
+
+            entity.HasOne(s => s.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(s => s.CreatedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<AgentSkill>(entity =>
+        {
+            entity.ToTable("agent_skills");
+            entity.HasKey(l => new { l.AgentId, l.SkillId });
+
+            entity.HasOne(l => l.Agent)
+                .WithMany(a => a.SkillLinks)
+                .HasForeignKey(l => l.AgentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(l => l.Skill)
+                .WithMany(s => s.AgentLinks)
+                .HasForeignKey(l => l.SkillId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<AgentSubAgent>(entity =>
+        {
+            entity.ToTable("agent_sub_agents");
+            entity.HasKey(l => new { l.AgentId, l.SubAgentId });
+
+            // Self-referencing N:N — only one side may cascade to avoid an ambiguous multi-path delete.
+            entity.HasOne(l => l.Agent)
+                .WithMany(a => a.SubAgentLinks)
+                .HasForeignKey(l => l.AgentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(l => l.SubAgent)
+                .WithMany()
+                .HasForeignKey(l => l.SubAgentId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

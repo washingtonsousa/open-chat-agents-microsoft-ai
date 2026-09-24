@@ -14,8 +14,10 @@ import {
   Typography,
 } from "@mui/material";
 import { agentApi, modelsApi } from "@/services/api";
+import { AgentMultiSelect } from "@/components/agent/AgentMultiSelect";
 import { KbMultiSelect } from "@/components/knowledge-base/KbMultiSelect";
 import { McpServerMultiSelect } from "@/components/mcp-server/McpServerMultiSelect";
+import { SkillMultiSelect } from "@/components/skill/SkillMultiSelect";
 import type { Agent, AgentCreate, LLMProvider, ModelInfo } from "@/types";
 
 interface Props {
@@ -33,6 +35,8 @@ const DEFAULTS: AgentCreate = {
   system_prompt: "Você é um assistente prestativo e amigável.",
   knowledge_base_ids: [],
   mcp_server_ids: [],
+  sub_agent_ids: [],
+  skill_ids: [],
 };
 
 export function AgentForm({ agent, onSaved, onCancel }: Props) {
@@ -48,6 +52,8 @@ export function AgentForm({ agent, onSaved, onCancel }: Props) {
           system_prompt: agent.system_prompt,
           knowledge_base_ids: agent.knowledge_bases.map((kb) => kb.id),
           mcp_server_ids: agent.mcp_servers.map((s) => s.id),
+          sub_agent_ids: agent.sub_agents.map((s) => s.id),
+          skill_ids: agent.skills.map((s) => s.id),
         }
       : DEFAULTS
   );
@@ -217,6 +223,24 @@ export function AgentForm({ agent, onSaved, onCancel }: Props) {
             Servidores MCP (ferramentas)
           </Typography>
           <McpServerMultiSelect value={form.mcp_server_ids} onChange={(ids) => set("mcp_server_ids", ids)} />
+        </Box>
+
+        <Box>
+          <Typography variant="body2" sx={{ mb: 1, fontWeight: 500 }}>
+            Skills
+          </Typography>
+          <SkillMultiSelect value={form.skill_ids} onChange={(ids) => set("skill_ids", ids)} />
+        </Box>
+
+        <Box>
+          <Typography variant="body2" sx={{ mb: 1, fontWeight: 500 }}>
+            Sub-agentes (orquestração)
+          </Typography>
+          <AgentMultiSelect
+            value={form.sub_agent_ids}
+            onChange={(ids) => set("sub_agent_ids", ids)}
+            excludeAgentId={agent?.id}
+          />
         </Box>
 
         {error && <Alert severity="error">{error}</Alert>}

@@ -19,13 +19,16 @@ import type {
   ModelsResponse,
   Session,
   SessionListResponse,
+  Skill,
+  SkillCreate,
+  SkillListResponse,
   User,
   UserCreate,
   UserListResponse,
 } from "@/types";
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8090";
-const API = `${BASE_URL}/api/v1`;
+export const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8090";
+export const API = `${BASE_URL}/api/v1`;
 const TOKEN_KEY = "open_chat_agents_token";
 
 export const authStorage = {
@@ -34,7 +37,7 @@ export const authStorage = {
   clearToken: () => localStorage.removeItem(TOKEN_KEY),
 };
 
-function authHeaders(): Record<string, string> {
+export function authHeaders(): Record<string, string> {
   const token = authStorage.getToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
@@ -167,6 +170,20 @@ export const mcpServerApi = {
   delete: (id: string) => request<void>(`/mcp-servers/${id}`, { method: "DELETE" }),
 };
 
+export const skillApi = {
+  create: (payload: SkillCreate) =>
+    request<Skill>("/skills", { method: "POST", body: JSON.stringify(payload) }),
+
+  update: (id: string, payload: Partial<SkillCreate>) =>
+    request<Skill>(`/skills/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
+
+  list: () => request<SkillListResponse>("/skills"),
+
+  get: (id: string) => request<Skill>(`/skills/${id}`),
+
+  delete: (id: string) => request<void>(`/skills/${id}`, { method: "DELETE" }),
+};
+
 export const consumerApplicationApi = {
   create: (payload: ConsumerApplicationCreate) =>
     request<ConsumerApplicationCreated>("/consumer-applications", {
@@ -185,12 +202,22 @@ interface StreamCallbacks {
   onDone: (msg: Message) => void;
 }
 
+export interface ChatImageAttachment {
+  base64: string;
+  contentType: string;
+}
+
 export const chatApi = {
-  stream: async (session_id: string, message: string, callbacks: StreamCallbacks) => {
+  stream: async (session_id: string, message: string, callbacks: StreamCallbacks, image?: ChatImageAttachment) => {
     const res = await fetch(`${API}/chat/stream`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ session_id, message }),
+      body: JSON.stringify({
+        session_id,
+        message,
+        image_base64: image?.base64 ?? null,
+        image_content_type: image?.contentType ?? null,
+      }),
     });
 
     if (!res.ok || !res.body) {

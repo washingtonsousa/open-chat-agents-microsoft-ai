@@ -26,6 +26,10 @@ public class AgentCreate
     public Guid[] KnowledgeBaseIds { get; set; } = [];
 
     public Guid[] McpServerIds { get; set; } = [];
+
+    public Guid[] SubAgentIds { get; set; } = [];
+
+    public Guid[] SkillIds { get; set; } = [];
 }
 
 public class AgentUpdate
@@ -51,6 +55,10 @@ public class AgentUpdate
     public Guid[]? KnowledgeBaseIds { get; set; }
 
     public Guid[]? McpServerIds { get; set; }
+
+    public Guid[]? SubAgentIds { get; set; }
+
+    public Guid[]? SkillIds { get; set; }
 }
 
 public class AgentKnowledgeBaseSummary
@@ -60,6 +68,19 @@ public class AgentKnowledgeBaseSummary
 }
 
 public class AgentMcpServerSummary
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Kind { get; set; } = string.Empty;
+}
+
+public class AgentSubAgentSummary
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+}
+
+public class AgentSkillSummary
 {
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
@@ -77,6 +98,8 @@ public class AgentResponse
     public UserResponse? CreatedBy { get; set; }
     public List<AgentKnowledgeBaseSummary> KnowledgeBases { get; set; } = [];
     public List<AgentMcpServerSummary> McpServers { get; set; } = [];
+    public List<AgentSubAgentSummary> SubAgents { get; set; } = [];
+    public List<AgentSkillSummary> Skills { get; set; } = [];
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 
@@ -95,7 +118,13 @@ public class AgentResponse
             .Select(l => new AgentKnowledgeBaseSummary { Id = l.KnowledgeBase!.Id, Name = l.KnowledgeBase.Name })],
         McpServers = [.. agent.McpServerLinks
             .Where(l => l.McpServer is not null)
-            .Select(l => new AgentMcpServerSummary { Id = l.McpServer!.Id, Name = l.McpServer.Name })],
+            .Select(l => new AgentMcpServerSummary { Id = l.McpServer!.Id, Name = l.McpServer.Name, Kind = l.McpServer.Kind })],
+        SubAgents = [.. agent.SubAgentLinks
+            .Where(l => l.SubAgent is not null)
+            .Select(l => new AgentSubAgentSummary { Id = l.SubAgent!.Id, Name = l.SubAgent.Name })],
+        Skills = [.. agent.SkillLinks
+            .Where(l => l.Skill is not null)
+            .Select(l => new AgentSkillSummary { Id = l.Skill!.Id, Name = l.Skill.Name })],
         CreatedAt = agent.CreatedAt,
         UpdatedAt = agent.UpdatedAt,
     };

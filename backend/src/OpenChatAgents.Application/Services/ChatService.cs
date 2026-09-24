@@ -20,6 +20,7 @@ public class ChatService(
     IChatAgentFactory chatAgentFactory,
     ModerationService moderation,
     KbRetrievalService kbRetrieval,
+    IObjectStore objectStore,
     IOptions<AppOptions> appOptions)
 {
     private const string DefaultSystemPrompt = """
@@ -31,7 +32,7 @@ public class ChatService(
         - Se não souber a resposta, diga que não sabe ao invés de inventar.
         """;
 
-    public async IAsyncEnumerable<SseEvent> StreamMessageAsync(Guid sessionId, string userInput, Guid userId)
+    public async IAsyncEnumerable<SseEvent> StreamMessageAsync(Guid sessionId, string userInput, Guid userId, string? imageBase64 = null, string? imageContentType = null)
     {
         // Tags reconhecidas pelo Langfuse para agrupar traces nas telas de Sessions/Users.
         // Marcadas no span raiz (o da requisição HTTP, instrumentado pelo AddAspNetCoreInstrumentation)
@@ -47,7 +48,18 @@ public class ChatService(
         var session = await sessionService.GetSessionAsync(sessionId);
         activity?.SetTag("chat.agent_name", session.Agent?.Name ?? "default");
 
-        var userMessage = await messageRepo.CreateAsync(sessionId, Models.MessageRole.User, userInput);
+        string? imageObjectKey = null;
+        byte[]? imageBytes = null;
+        if (!string.IsNullOrEmpty(imageBase64) && !string.IsNullOrEmpty(imageContentType))
+        {
+            imageBytes = Convert.FromBase64String(imageBase64);
+            var extension = imageContentType.Split('/').Last();
+            imageObjectKey = $"chat/{sessionId}/{Guid.NewGuid():N}.{extension}";
+            using var imageStream = new MemoryStream(imageBytes);
+            await objectStore.PutObjectAsync(imageObjectKey, imageStream, imageBytes.Length, imageContentType);
+        }
+
+        var userMessage = await messageRepo.CreateAsync(sessionId, Models.MessageRole.User, userInput, imageObjectKey, imageContentType);
         yield return new SseEvent("user_message", MessageResponse.FromEntity(userMessage));
 
         string fullContent;
@@ -72,6 +84,11 @@ public class ChatService(
 
             var messages = await BuildMessagesAsync(sessionId);
 
+            // Só o turno atual vai multimodal pro modelo — imagens antigas do histórico ficam
+            // só pra exibição, evitando reenviar/reprocessar imagens a cada novo turno.
+            if (imageBytes is not null && messages.Count > 0)
+                messages[^1].Contents.Add(new DataContent(imageBytes, imageContentType!));
+
             var knowledgeBases = (session.Agent?.KnowledgeBaseLinks ?? [])
                 .Select(l => l.KnowledgeBase)
                 .Where(kb => kb is not null)
@@ -92,7 +109,7 @@ public class ChatService(
                 messages.Insert(0, new ChatMessage(ChatRole.System, retrievedContext));
 
             var sb = new StringBuilder();
-            await foreach (var token in chatAgentFactory.StreamAsync(effectiveAgent, messages))
+            await foreach (var token in chatAgentFactory.StreamAsync(effectiveAgent, messages, userId))
             {
                 sb.Append(token);
                 yield return new SseEvent("chunk", new { content = token });
@@ -109,6 +126,17 @@ public class ChatService(
         await sessionService.GetSessionAsync(sessionId);
         return await messageRepo.ListBySessionAsync(sessionId);
     }
+
+    public async Task<Models.Message> GetImageMessageAsync(Guid sessionId, Guid messageId)
+    {
+        await sessionService.GetSessionAsync(sessionId);
+        var message = await messageRepo.GetByIdAsync(messageId);
+        if (message is null || message.SessionId != sessionId || message.ImageObjectKey is null)
+            throw Exceptions.ApiException.NotFound("Imagem não encontrada.");
+        return message;
+    }
+
+    public Task<Stream> GetImageStreamAsync(string imageObjectKey) => objectStore.GetObjectStreamAsync(imageObjectKey);
 
     private async Task<List<ChatMessage>> BuildMessagesAsync(Guid sessionId)
     {

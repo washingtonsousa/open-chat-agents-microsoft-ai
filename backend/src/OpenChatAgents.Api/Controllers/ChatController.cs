@@ -23,7 +23,7 @@ public class ChatController(ChatService service, JsonSerializerOptions jsonOptio
 
         try
         {
-            await foreach (var evt in service.StreamMessageAsync(payload.SessionId, payload.Message, userId).WithCancellation(cancellationToken))
+            await foreach (var evt in service.StreamMessageAsync(payload.SessionId, payload.Message, userId, payload.ImageBase64, payload.ImageContentType).WithCancellation(cancellationToken))
             {
                 await WriteSseAsync(evt.Event, evt.Data, cancellationToken);
             }
@@ -43,6 +43,15 @@ public class ChatController(ChatService service, JsonSerializerOptions jsonOptio
             SessionId = sessionId,
             Messages = [.. messages.Select(MessageResponse.FromEntity)],
         });
+    }
+
+    [HttpGet("{sessionId:guid}/messages/{messageId:guid}/image")]
+    public async Task GetImage(Guid sessionId, Guid messageId)
+    {
+        var message = await service.GetImageMessageAsync(sessionId, messageId);
+        await using var stream = await service.GetImageStreamAsync(message.ImageObjectKey!);
+        Response.ContentType = message.ImageContentType ?? "application/octet-stream";
+        await stream.CopyToAsync(Response.Body);
     }
 
     private async Task WriteSseAsync(string eventName, object data, CancellationToken cancellationToken)

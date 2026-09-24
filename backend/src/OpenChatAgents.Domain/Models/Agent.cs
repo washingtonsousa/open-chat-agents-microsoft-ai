@@ -17,4 +17,8 @@ public class Agent
     public ICollection<Session> Sessions { get; set; } = [];
     public ICollection<AgentKnowledgeBase> KnowledgeBaseLinks { get; set; } = [];
     public ICollection<AgentMcpServer> McpServerLinks { get; set; } = [];
+    public ICollection<AgentSkill> SkillLinks { get; set; } = [];
+
+    /// <summary>Other agents this agent can consult as a tool (orchestrator pattern).</summary>
+    public ICollection<AgentSubAgent> SubAgentLinks { get; set; } = [];
 }

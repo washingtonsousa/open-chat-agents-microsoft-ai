@@ -15,6 +15,7 @@ public class AppOptions
     public WeaviateOptions Weaviate { get; set; } = new();
     public Argon2Options Argon2 { get; set; } = new();
     public TelemetryOptions Telemetry { get; set; } = new();
+    public FilesystemOptions Filesystem { get; set; } = new();
 }
 
 public class AwsOptions
@@ -80,4 +81,10 @@ public class TelemetryOptions
     /// Langfuse instance.
     /// </summary>
     public bool CaptureSensitiveContent { get; set; }
+}
+
+public class FilesystemOptions
+{
+    /// <summary>Sandbox root for the built-in filesystem MCP tool — no path outside this root is ever reachable.</summary>
+    public string RootPath { get; set; } = "/agent-files";
 }

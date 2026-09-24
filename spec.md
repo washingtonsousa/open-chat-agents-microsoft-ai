@@ -6,14 +6,17 @@
 
 ## 1. Objetivo
 
-Uma plataforma de chat com agentes de IA configuráveis, com RAG (Retrieval-Augmented Generation) de verdade, ferramentas externas via MCP (Model Context Protocol), observabilidade de LLM de ponta a ponta, e um modelo de acesso que cobre tanto usuários humanos (login/senha) quanto integrações programáticas (client_id/client_secret).
+Uma plataforma de chat com agentes de IA configuráveis, com RAG (Retrieval-Augmented Generation) de verdade, ferramentas MCP (Model Context Protocol) externas e embutidas, orquestração multi-agente, skills reutilizáveis, visão computacional no chat, observabilidade de LLM de ponta a ponta, e um modelo de acesso que cobre tanto usuários humanos (login/senha) quanto integrações programáticas (client_id/client_secret).
 
 É um **porte .NET** do POC Python `open-chat-agents` (`../Chat Bot Com Rag e Front`), reescrito sobre **ASP.NET Core 10** + **Microsoft Agent Framework** no lugar de FastAPI + LangChain/LangGraph, e estendido com capacidades que o projeto original nunca teve:
 
 - Bases de conhecimento (RAG) com upload de documentos, chunking configurável, embeddings e busca vetorial.
 - Autenticação com login/senha (JWT + Argon2id) e uma segunda via de acesso para aplicações externas (OAuth2 client-credentials).
 - Um worker dedicado, orientado a eventos, para o pipeline de ingestão de documentos.
-- Servidores MCP cadastráveis e anexáveis a agentes como ferramentas.
+- Servidores MCP externos (remotos, com ou sem autenticação) **e embutidos** (filesystem, data/hora, criador de skills), todos anexáveis a agentes como ferramentas pela mesma tela.
+- Skills — instruções reutilizáveis em markdown, criáveis por um editor na UI ou pelo próprio chat, anexáveis a agentes.
+- Orquestração multi-agente — um agente pode consultar outros agentes existentes como ferramenta.
+- Visão computacional no chat — anexar imagens quando o modelo do agente suportar.
 - Um painel inicial (dashboard) com visão geral e ações rápidas.
 - Observabilidade de agente/LLM (tracing OpenTelemetry → Langfuse self-hosted).
 - Frontend em Material Design (MUI) no lugar de Tailwind puro.
@@ -56,13 +59,15 @@ Uma plataforma de chat com agentes de IA configuráveis, com RAG (Retrieval-Augm
 
 Cinco projetos .NET, com dependências apontando sempre para dentro: `Api`/`Worker` → `Infrastructure` + `Application` → `Domain`. `Infrastructure` e `Application` nunca se referenciam entre si — as duas só dependem de `Domain`, que não tem nenhuma dependência de infraestrutura concreta (só `Microsoft.Extensions.AI.Abstractions`, que é puramente tipos/interfaces).
 
-- **`OpenChatAgents.Domain`** — o núcleo. Entidades, POCOs de configuração (`AppOptions`), interfaces de repositório, interfaces de infraestrutura ("portas": `IChatAgentFactory`, `IEmbeddingClientFactory`, `IObjectStore`, `IPasswordHasher`, `ITextExtractor`, `ISecretProtector`, `IMcpToolFactory`, `IKbVectorStore`), e serviços de domínio puros (`ModerationService`, `ChunkingService`) sem nenhuma dependência externa.
-- **`OpenChatAgents.Application`** — os casos de uso. Um serviço por área de negócio (`AgentService`, `SessionService`, `ChatService`, `AuthService`, `UserService`, `KnowledgeBaseService`, `KbRetrievalService`, `KbIngestionService`, `McpServerService`, `ConsumerApplicationService`), os DTOs de contrato da API (`Dtos/`, sempre com o trio `*Create`/`*Update`/`*Response` + `*ListResponse`), e `ApiException` (erro de negócio com status HTTP associado). Depende só de `Domain`.
-- **`OpenChatAgents.Infrastructure`** — as implementações concretas de cada porta do `Domain`: EF Core (`Data/`, `Persistence/`), Weaviate (`VectorStore/`), MinIO (`Storage/`), RabbitMQ (`Messaging/`), Argon2 (`Security/Argon2PasswordHasher`), Data Protection (`Security/DataProtectionSecretProtector`), Ollama/Bedrock (`Agents/`), MCP (`Mcp/McpToolFactory`), extração de texto (`Ingestion/TextExtractor`), e o wiring do OpenTelemetry (`Telemetry/TelemetryExtensions`).
+- **`OpenChatAgents.Domain`** — o núcleo. Entidades, POCOs de configuração (`AppOptions`), interfaces de repositório, interfaces de infraestrutura ("portas": `IChatAgentFactory`, `IEmbeddingClientFactory`, `IObjectStore`, `IPasswordHasher`, `ITextExtractor`, `ISecretProtector`, `IMcpToolFactory`, `IBuiltInToolProvider`, `IKbVectorStore`), e serviços de domínio puros (`ModerationService`, `ChunkingService`) sem nenhuma dependência externa.
+- **`OpenChatAgents.Application`** — os casos de uso. Um serviço por área de negócio (`AgentService`, `SessionService`, `ChatService`, `AuthService`, `UserService`, `KnowledgeBaseService`, `KbRetrievalService`, `KbIngestionService`, `McpServerService`, `ConsumerApplicationService`, `SkillService`), os DTOs de contrato da API (`Dtos/`, sempre com o trio `*Create`/`*Update`/`*Response` + `*ListResponse`), e `ApiException` (erro de negócio com status HTTP associado). Depende só de `Domain`.
+- **`OpenChatAgents.Infrastructure`** — as implementações concretas de cada porta do `Domain`: EF Core (`Data/`, `Persistence/`), Weaviate (`VectorStore/`), MinIO (`Storage/`), RabbitMQ (`Messaging/`), Argon2 (`Security/Argon2PasswordHasher`), Data Protection (`Security/DataProtectionSecretProtector`), Ollama/Bedrock (`Agents/ChatAgentFactory`, que também resolve tools de MCP e de sub-agentes), MCP externo (`Mcp/McpToolFactory`), ferramentas embutidas (`BuiltInTools/`: `FilesystemToolProvider`, `DateTimeToolProvider`, `SkillCreatorToolProvider`), extração de texto (`Ingestion/TextExtractor`), e o wiring do OpenTelemetry (`Telemetry/TelemetryExtensions`).
 - **`OpenChatAgents.Api`** — Controllers + `Program.cs`. É o *composition root*: o único lugar que liga interface do `Domain` → implementação do `Infrastructure` via injeção de dependência.
 - **`OpenChatAgents.Worker`** — um único `BackgroundService` (`KbIngestionBackgroundService`) que consome RabbitMQ e delega para `KbIngestionService` (Application); mais seu próprio `Program.cs`/DI.
 
 Regra prática: mexer numa entidade, interface de repositório ou porta de infra → sempre em `Domain`. Mexer em como algo é persistido ou em qual SDK é chamado → `Infrastructure`. Mexer na orquestração de um caso de uso → `Application`. Os cinco projetos precisam ser rebuildados/redeployados juntos sempre que qualquer um muda — não há versionamento independente entre camadas.
+
+**Cuidado com lifetime de DI**: `IChatAgentFactory`/`IMcpToolFactory` são registrados como `Scoped` (não `Singleton`), de propósito — eles dependem, transitivamente, de `IBuiltInToolProvider` implementações `Scoped` (`SkillCreatorToolProvider` → `ISkillRepository` → `AppDbContext`). Registrar qualquer coisa na cadeia `ChatAgentFactory`/`McpToolFactory` como `Singleton` de novo captura um `AppDbContext` pra sempre — um bug real que já aconteceu nesse projeto ao adicionar o criador de skills.
 
 ### 3.2 Frontend
 
@@ -75,19 +80,23 @@ frontend/src/
 │   ├── chat/page.tsx                     Chat (sidebar de agentes/conversas + janela de chat)
 │   ├── login/page.tsx
 │   ├── knowledge-bases/page.tsx          CRUD de KBs + upload/status de documentos
-│   ├── mcp-servers/page.tsx              CRUD de servidores MCP
+│   ├── mcp-servers/page.tsx              CRUD de servidores MCP (externos + embutidos, com badge)
+│   ├── skills/page.tsx                   CRUD de skills, com preview markdown
 │   ├── admin/users/page.tsx              CRUD de usuários (admin only)
 │   ├── admin/consumer-applications/page.tsx  CRUD de aplicações consumidoras (admin only)
 │   └── layout.tsx                        AppRouterCacheProvider + ThemeProvider + CssBaseline
 ├── components/
-│   ├── agent/          AgentForm, AgentModal
+│   ├── agent/          AgentForm, AgentModal, AgentMultiSelect (sub-agentes)
 │   ├── auth/            AuthGuard (contexto de usuário logado + guard de rota), ChangePasswordModal
-│   ├── chat/              ChatWindow, ChatInput, MessageBubble, SessionSidebar
+│   ├── chat/              ChatWindow, ChatInput (anexo de imagem), MessageBubble (AuthenticatedImage), SessionSidebar
 │   ├── knowledge-base/     KnowledgeBaseForm/Modal, KbMultiSelect, KbDetailPanel
 │   ├── mcp-server/           McpServerForm/Modal, McpServerMultiSelect
-│   └── session/                 NewSessionModal
+│   ├── skill/                   SkillForm (editor markdown com preview), SkillModal, SkillMultiSelect
+│   └── session/                    NewSessionModal
 ├── services/api.ts        cliente HTTP único: um objeto por recurso (`agentApi`, `knowledgeBaseApi`,
-│                           `mcpServerApi`, `consumerApplicationApi`, `sessionApi`, `chatApi`, `userApi`, `authApi`)
+│                           `mcpServerApi`, `skillApi`, `consumerApplicationApi`, `sessionApi`, `chatApi`,
+│                           `userApi`, `authApi`); exporta `BASE_URL`/`API`/`authHeaders` para fetches
+│                           autenticados fora do helper padrão (ex.: imagem do chat)
 ├── types/index.ts          tipos TS espelhando o contrato JSON (snake_case) do backend
 └── theme.ts                 tema MUI (Material Design 3)
 ```
@@ -108,33 +117,37 @@ open-chat-agents-dotnet/
 │   ├── OpenChatAgents.slnx
 │   └── src/
 │       ├── OpenChatAgents.Domain/
-│       │   ├── Models/            Agent, AgentKnowledgeBase, AgentMcpServer, ConsumerApplication,
-│       │   │                      KbChunkRef, KbDocument, KbDocumentStatus, KnowledgeBase, LlmProvider,
-│       │   │                      McpAuthType, McpServer, Message, MessageRole, Session, User
-│       │   ├── Options/           AppOptions (+ Jwt/Minio/RabbitMq/Weaviate/Argon2/Aws/Telemetry)
+│       │   ├── Models/            Agent, AgentKnowledgeBase, AgentMcpServer, AgentSkill, AgentSubAgent,
+│       │   │                      ConsumerApplication, KbChunkRef, KbDocument, KbDocumentStatus,
+│       │   │                      KnowledgeBase, LlmProvider, McpAuthType, McpServer, McpServerKind,
+│       │   │                      Message, MessageRole, Session, Skill, User
+│       │   ├── Options/           AppOptions (+ Jwt/Minio/RabbitMq/Weaviate/Argon2/Aws/Telemetry/Filesystem)
 │       │   ├── Repositories/      IAgentRepository, IConsumerApplicationRepository, IKbDocumentRepository,
 │       │   │                      IKnowledgeBaseRepository, IMcpServerRepository, IMessageRepository,
-│       │   │                      ISessionRepository, IUserRepository
+│       │   │                      ISessionRepository, ISkillRepository, IUserRepository
 │       │   ├── Abstractions/      IChatAgentFactory, IEmbeddingClientFactory, IMcpToolFactory,
-│       │   │                      IObjectStore, IPasswordHasher, ISecretProtector, ITextExtractor
+│       │   │                      IBuiltInToolProvider, IObjectStore, IPasswordHasher, ISecretProtector,
+│       │   │                      ITextExtractor
 │       │   ├── VectorStore/       IKbVectorStore (+ KbChunkRecord/KbSearchResult)
 │       │   ├── Services/          ChunkingService, ModerationService
 │       │   └── Telemetry/         AppActivitySource
 │       ├── OpenChatAgents.Application/
 │       │   ├── Dtos/              AgentDtos, AuthDtos, ChatDtos, ConsumerApplicationDtos,
-│       │   │                      KnowledgeBaseDtos, McpServerDtos, SessionDtos, UserDtos
+│       │   │                      KnowledgeBaseDtos, McpServerDtos, SessionDtos, SkillDtos, UserDtos
 │       │   ├── Exceptions/        ApiException
 │       │   └── Services/          AgentService, AuthService, ChatService, ConsumerApplicationService,
 │       │                          KbIngestionService, KbRetrievalService, KnowledgeBaseService,
-│       │                          McpServerService, SessionService, UserService
+│       │                          McpServerService, SessionService, SkillService, UserService
 │       ├── OpenChatAgents.Infrastructure/
 │       │   ├── Data/              AppDbContext
-│       │   ├── Migrations/        InitialCreate, AddKbAndAuth, AddMcpServersAndConsumerApplications
+│       │   ├── Migrations/        InitialCreate, AddKbAndAuth, AddMcpServersAndConsumerApplications,
+│       │   │                      AddSkillsSubAgentsBuiltInToolsAndChatImages
 │       │   ├── Persistence/       AgentRepository, ConsumerApplicationRepository, KbDocumentRepository,
 │       │   │                      KnowledgeBaseRepository, McpServerRepository, MessageRepository,
-│       │   │                      SessionRepository, UserRepository
+│       │   │                      SessionRepository, SkillRepository, UserRepository
 │       │   ├── Agents/            BedrockModelCatalog, ChatAgentFactory, EmbeddingClientFactory
-│       │   ├── Mcp/               McpToolFactory
+│       │   ├── Mcp/               McpToolFactory (servidores externos + despacha para BuiltInTools)
+│       │   ├── BuiltInTools/      FilesystemToolProvider, DateTimeToolProvider, SkillCreatorToolProvider
 │       │   ├── Security/          Argon2PasswordHasher, DataProtectionSecretProtector
 │       │   ├── Storage/           MinioObjectStore
 │       │   ├── Messaging/         MinioEventNotification, RabbitMqConnectionFactory
@@ -145,7 +158,7 @@ open-chat-agents-dotnet/
 │       │   ├── Controllers/       AgentsController, AuthController, ChatController,
 │       │   │                      ConsumerApplicationsController, KnowledgeBasesController,
 │       │   │                      McpServersController, ModelsController, SessionsController,
-│       │   │                      UsersController
+│       │   │                      SkillsController, UsersController
 │       │   └── Program.cs
 │       └── OpenChatAgents.Worker/
 │           ├── KbIngestionBackgroundService.cs
@@ -164,16 +177,19 @@ Tabelas Postgres (snake_case), todas com `Id`/PK `Guid`, timestamps em `timestam
 | Tabela | Campos principais | Relacionamentos |
 |---|---|---|
 | `users` | `Username` (único), `PasswordHash` (Argon2id), `IsAdmin`, `MustChangePassword`, `CreatedByUserId` | auto-referência (quem cadastrou) |
-| `agents` | `Name` (único), `Provider` (`ollama`/`bedrock`), `LlmModel`, `Temperature`, `MaxTokens`, `SystemPrompt`, `CreatedByUserId` | N:N com `knowledge_bases` (via `agent_knowledge_bases`) e com `mcp_servers` (via `agent_mcp_servers`); 1:N com `sessions` |
+| `agents` | `Name` (único), `Provider` (`ollama`/`bedrock`), `LlmModel`, `Temperature`, `MaxTokens`, `SystemPrompt`, `CreatedByUserId` | N:N com `knowledge_bases` (via `agent_knowledge_bases`), `mcp_servers` (via `agent_mcp_servers`), `skills` (via `agent_skills`) e consigo mesmo (via `agent_sub_agents`, orquestração); 1:N com `sessions` |
 | `sessions` | `Title`, `AgentId` (nulável) | N:1 com `agents`; 1:N com `messages`. **Sem dono** — sessões são públicas para qualquer usuário autenticado |
-| `messages` | `SessionId`, `Role` (`user`/`assistant`), `Content` | N:1 com `sessions`, cascade delete |
+| `messages` | `SessionId`, `Role` (`user`/`assistant`), `Content`, `ImageObjectKey`/`ImageContentType` (nuláveis — imagem anexada, guardada no MinIO) | N:1 com `sessions`, cascade delete |
 | `knowledge_bases` | `Name` (único), `Description`, `ChunkSize`, `ChunkOverlap`, `EmbeddingProvider`, `EmbeddingModel`, `EmbeddingDimensions`, `CreatedByUserId` | N:N com `agents`; 1:N com `kb_documents` |
 | `kb_documents` | `KnowledgeBaseId`, `FileName`, `ContentType`, `SizeBytes`, `ObjectKey` (caminho no MinIO), `Status` (`uploaded`→`processing`→`completed`/`failed`), `ErrorMessage`, `ChunkCount`, `ProcessedAt` | N:1 com `knowledge_bases`, cascade; 1:N com `kb_chunk_refs` |
 | `kb_chunk_refs` | `KbDocumentId`, `ChunkIndex`, `CharStart`, `CharEnd` | referência aos vetores gravados no Weaviate (o conteúdo do chunk em si vive só no Weaviate, não aqui) |
 | `agent_knowledge_bases` | PK composta `(AgentId, KnowledgeBaseId)` | tabela de junção, cascade nos dois lados |
-| `mcp_servers` | `Name` (único), `Url`, `AuthType` (`none`/`bearer-token`/`header`), `AuthHeaderName`, `Secret` (**ciphertext**, Data Protection), `CreatedByUserId` | N:N com `agents` |
+| `mcp_servers` | `Name` (único), `Description`, `Kind` (`external`/`built-in`), `Url` (nulável — só `external`), `AuthType` (`none`/`bearer-token`/`header`), `AuthHeaderName`, `Secret` (**ciphertext**, Data Protection), `BuiltInKey` (nulável — só `built-in`: `filesystem`/`datetime`/`skill-creator`), `CreatedByUserId` | N:N com `agents` |
 | `agent_mcp_servers` | PK composta `(AgentId, McpServerId)` | tabela de junção, cascade nos dois lados |
 | `consumer_applications` | `Name`, `ClientId` (único, prefixo `oca_`), `ClientSecretHash` (Argon2id), `IsActive`, `CreatedByUserId` | sem tabela de junção — client credentials dão acesso geral, igual um usuário |
+| `skills` | `Name` (único), `Description`, `Content` (markdown), `CreatedByUserId` | N:N com `agents` (via `agent_skills`) |
+| `agent_skills` | PK composta `(AgentId, SkillId)` | tabela de junção, cascade nos dois lados |
+| `agent_sub_agents` | PK composta `(AgentId, SubAgentId)` | auto-referência N:N em `agents` — `AgentId`→cascade, `SubAgentId`→**restrict** (evita ambiguidade de múltiplos caminhos de cascade); não há checagem de ciclo no banco, a proteção contra recursão é em runtime (ver seção 7.8) |
 
 Cada Knowledge Base tem sua **própria coleção Weaviate**, nomeada `Kb_{kbId:N}`, criada dinamicamente porque cada KB pode usar um modelo de embedding diferente (dimensionalidade diferente).
 
@@ -189,15 +205,17 @@ Base: `/api/v1`. Todos exigem `Authorization: Bearer <token>` exceto os marcados
 | `POST` | `/auth/token` | Client-credentials (`client_id`+`client_secret`) → JWT | público |
 | `POST` | `/auth/change-password` | Troca a própria senha | autenticado |
 | `GET` | `/auth/me` | Usuário autenticado atual | autenticado |
-| `POST GET PUT DELETE` | `/agents` | CRUD de agentes (inclui `knowledge_base_ids`/`mcp_server_ids`) | autenticado |
+| `POST GET PUT DELETE` | `/agents` | CRUD de agentes (inclui `knowledge_base_ids`/`mcp_server_ids`/`skill_ids`/`sub_agent_ids`) | autenticado |
 | `POST GET DELETE` | `/sessions` | CRUD de sessões de conversa | autenticado |
-| `POST` | `/chat/stream` | Envia mensagem (SSE: `user_message`\|`chunk`\|`done`) | autenticado |
+| `POST` | `/chat/stream` | Envia mensagem (SSE: `user_message`\|`chunk`\|`done`; aceita `image_base64`/`image_content_type` opcionais) | autenticado |
 | `GET` | `/chat/{sessionId}/history` | Histórico da sessão | autenticado |
+| `GET` | `/chat/{sessionId}/messages/{messageId}/image` | Bytes da imagem anexada a uma mensagem | autenticado |
 | `GET` | `/models/ollama` \| `/models/bedrock` | Modelos disponíveis por provider | autenticado |
 | `POST GET DELETE` | `/knowledge-bases` | CRUD de KBs | autenticado |
 | `POST` | `/knowledge-bases/{id}/documents` | Upload de documento (multipart) | autenticado |
 | `GET` | `/knowledge-bases/{id}/documents` | Status dos documentos da KB | autenticado |
-| `POST GET PUT DELETE` | `/mcp-servers` | CRUD de servidores MCP | autenticado |
+| `POST GET PUT DELETE` | `/mcp-servers` | CRUD de servidores MCP (linhas `kind=built-in` recusam `PUT`/`DELETE`) | autenticado |
+| `POST GET PUT DELETE` | `/skills` | CRUD de skills | autenticado |
 | `POST GET DELETE` | `/users` | CRUD de usuários | **admin** |
 | `POST GET DELETE` | `/consumer-applications` | CRUD de aplicações consumidoras (secret só aparece na criação) | **admin** |
 | `GET` | `/health` | Healthcheck | público |
@@ -226,7 +244,27 @@ Um admin cadastra uma `ConsumerApplication` (só o nome) e recebe, uma única ve
 
 `/` é a tela inicial: mensagem de boas-vindas, contagem de agentes/KBs/conversas/servidores MCP, ações rápidas (nova conversa, novo agente, nova KB, novo servidor MCP — os três últimos abrem os modais existentes direto na própria tela), e lista das conversas recentes (que levam para `/chat?session=<id>`). O chat em si vive em `/chat`.
 
-### 7.6 Observabilidade
+### 7.6 Ferramentas MCP embutidas (built-in)
+
+Além de servidores MCP externos, o backend traz três ferramentas nativas, semeadas no startup (`McpServerService.EnsureBuiltInServersAsync`, upsert idempotente por `BuiltInKey`) como linhas `McpServer` com `Kind=BuiltIn` — aparecem na mesma tela "Servidores MCP", no mesmo multi-select do agente, com um badge "embutido", mas sem os botões de editar/excluir (o `McpServerService` recusa `Update`/`Delete` nessas linhas com `ApiException.Conflict`). Motivo de serem funções nativas e não um servidor MCP real: o SDK oficial (`ModelContextProtocol.AspNetCore`) ainda não suporta múltiplas rotas MCP independentes na mesma app, e tem um bug aberto de DI com escopo não confiável no modo HTTP — então cada ferramenta embutida implementa `IBuiltInToolProvider` (`Domain/Abstractions`) e expõe suas `AITool`s via `AIFunctionFactory.Create`, resolvidas em processo por `McpToolFactory` quando `Kind=BuiltIn`, sem nenhuma conexão de rede:
+
+- **`filesystem`** (`FilesystemToolProvider`, Infrastructure): ler, listar, escrever e apagar arquivos dentro de uma única pasta-raiz sandboxed (`AppOptions.Filesystem.RootPath`, volume `agent_filesystem` no Compose). Toda operação resolve o caminho contra a raiz via `Path.GetFullPath` + checagem de prefixo — qualquer tentativa de escapar (`../../etc/passwd`, caminho absoluto) é rejeitada. Leitura **e** escrita habilitadas (decisão explícita do usuário, não é somente-leitura).
+- **`datetime`** (`DateTimeToolProvider`, Infrastructure): hora atual por fuso horário, conversão entre fusos, listagem de fusos disponíveis — via `TimeZoneInfo`, sem estado nem I/O.
+- **`skill-creator`** (`SkillCreatorToolProvider`, Infrastructure): expõe um tool `CreateSkillAsync(name, description, content)` que a LLM aciona quando o usuário pede para criar uma skill pelo próprio chat; grava a skill com `CreatedByUserId` do usuário da conversa (via `BuiltInToolContext(UserId)`, passado pelo `ChatAgentFactory` a cada turno).
+
+### 7.7 Skills
+
+Uma `Skill` é uma entidade pública (como KB/Agente): `Name` (único), `Description`, `Content` em markdown, dono (`CreatedByUserId`). Criável de duas formas — pelo editor em `/skills` (campo de texto + preview lado a lado via `ReactMarkdown`/`remark-gfm`, mesma lib já usada no chat) ou pelo chat, através da ferramenta embutida `skill-creator` (7.6). Uma skill anexada a um agente (`AgentSkill`, N:N) é **injetada direto no `Instructions`/system prompt** do agente a cada turno (não é busca sob demanda nem RAG) — decisão explícita do usuário, mais simples e previsível que retrieval semântico para instruções curtas e reutilizáveis.
+
+### 7.8 Orquestração multi-agente
+
+Ao criar/editar um agente, é possível selecionar outros agentes existentes como **sub-agentes** (`AgentSubAgent`, N:N auto-referenciado em `Agent`). Em tempo de chat, `ChatAgentFactory.StreamAsync` usa o método de extensão do próprio Microsoft Agent Framework, `AIAgentExtensions.AsAIFunction(AIAgent, AIFunctionFactoryOptions?, AgentSession?)`, para expor cada sub-agente como uma `AIFunction` chamável pelo agente pai — a chamada por baixo dos panos é um `agent.RunAsync` completo do sub-agente. **Profundidade limitada a 1 nível por construção**, não por contador/guarda de ciclo: ao montar as tools do sub-agente filho, `ChatAgentFactory` resolve apenas as ferramentas MCP/embutidas do próprio filho e nunca expande `SubAgentLinks` do filho — só a chamada de streaming de nível superior olha para os sub-agentes do agente que está de fato conversando com o usuário.
+
+### 7.9 Visão computacional no chat
+
+O `ChatInput` permite anexar uma imagem (botão de clipe, `<input type="file" accept="image/*">`) junto de uma mensagem de texto. A imagem é convertida para base64 no navegador e enviada no corpo de `/chat/stream` (`image_base64`/`image_content_type`); no backend, `ChatService.StreamMessageAsync` decodifica, sobe o arquivo para o MinIO (`chat/{sessionId}/{messageId}/...`) e persiste a referência na mensagem (`ImageObjectKey`/`ImageContentType`) — só então monta a `ChatMessage` do turno atual como multimodal (`Contents.Add(new DataContent(bytes, contentType))`, `Microsoft.Extensions.AI`). **Somente o turno atual vai multimodal para o modelo** — imagens de turnos anteriores no histórico não são reenviadas ao LLM a cada nova mensagem, só ficam disponíveis para exibição via `GET /chat/{sessionId}/messages/{messageId}/image`. Não existe verificação de que o modelo do agente de fato suporta visão (sem API de descoberta de capacidade) — a UI sempre oferece anexar; um modelo sem suporte a visão simplesmente ignora o conteúdo de imagem. Confirmado que tanto `OllamaSharp` quanto o adapter do Bedrock repassam `DataContent` de imagem de verdade ao provider (não descartam).
+
+### 7.10 Observabilidade
 
 OpenTelemetry .NET SDK, span raiz automático via `AddAspNetCoreInstrumentation` (só na Api) + `AddHttpClientInstrumentation`, mais um `ActivitySource` manual (`AppActivitySource`, Domain) para amarrar o pipeline de negócio (moderação, retrieval, ingestão) em torno das chamadas de modelo já auto-instrumentadas pelo Microsoft Agent Framework (`UseOpenTelemetry` em cima do `AIAgent`/`IEmbeddingGenerator`). Exportado via OTLP/HTTP para um Langfuse self-hosted completo (Postgres + ClickHouse + Redis + MinIO dedicados). `AppSettings:Telemetry:CaptureSensitiveContent` (padrão `false`) controla se o conteúdo real de prompts/respostas aparece no trace.
 
@@ -236,8 +274,10 @@ OpenTelemetry .NET SDK, span raiz automático via `AddAspNetCoreInstrumentation`
 
 - **Contrato JSON**: sempre `snake_case` (via `JsonNamingPolicy.SnakeCaseLower`, configurado uma vez em `Api/Program.cs`) — os tipos TypeScript espelham isso 1:1, sem camada de tradução.
 - **DTOs**: trio `*Create` (campos obrigatórios, `[Required]`/`[Range]`/`[RegularExpression]`), `*Update` (todos os campos opcionais — `null` = "não mexe"), `*Response` (com `static FromEntity(...)` de fábrica) + `*ListResponse` (`{ Items, Total }`).
-- **Repositórios**: interface em `Domain/Repositories`, implementação EF Core em `Infrastructure/Persistence`. Update parcial via um record `*UpdateFields` com todos os campos nulláveis. Relação N:N é sincronizada por um método privado `Sync*Async` (remove tudo e reinsere) dentro do repositório do lado "dono" (ex.: `AgentRepository.SyncMcpServersAsync`).
-- **Tabelas**: nome plural snake_case (`ToTable("agent_mcp_servers")`), índice único via `HasIndex(...).IsUnique()`, timestamps com `HasDefaultValueSql("now()")`, FK para `CreatedByUserId` com `DeleteBehavior.SetNull` (exceto `knowledge_bases`, que usa `Restrict`).
+- **Repositórios**: interface em `Domain/Repositories`, implementação EF Core em `Infrastructure/Persistence`. Update parcial via um record `*UpdateFields` com todos os campos nulláveis. Relação N:N é sincronizada por um método privado `Sync*Async` (remove tudo e reinsere) dentro do repositório do lado "dono" (ex.: `AgentRepository.SyncMcpServersAsync`, `SyncSkillsAsync`, `SyncSubAgentsAsync`).
+- **Tabelas**: nome plural snake_case (`ToTable("agent_mcp_servers")`), índice único via `HasIndex(...).IsUnique()`, timestamps com `HasDefaultValueSql("now()")`, FK para `CreatedByUserId` com `DeleteBehavior.SetNull` (exceto `knowledge_bases`, que usa `Restrict`). Relação N:N auto-referenciada (`agent_sub_agents`) usa `DeleteBehavior.Cascade` num lado (`AgentId`) e `DeleteBehavior.Restrict` no outro (`SubAgentId`) — necessário porque EF Core recusa múltiplos caminhos de cascade ambíguos numa self-reference.
+- **Ferramentas embutidas**: cada ferramenta nativa (filesystem, datetime, skill-creator) implementa `IBuiltInToolProvider` (`Domain/Abstractions`, uma classe por ferramenta em `Infrastructure/BuiltInTools/`), identificada por uma `Key` string que casa com `McpServer.BuiltInKey`. Resolvidas via `IEnumerable<IBuiltInToolProvider>` injetado no `McpToolFactory`; **nunca** registrar como `Singleton` uma implementação que dependa (mesmo transitivamente) de um repositório/`AppDbContext` — ver gotcha de DI abaixo.
+- **Gotcha de DI (Scoped vs Singleton)**: `ChatAgentFactory` e `McpToolFactory` precisam ser `AddScoped`, nunca `AddSingleton` — `SkillCreatorToolProvider` (um dos `IBuiltInToolProvider`) é `Scoped` porque depende de `ISkillRepository`→`AppDbContext`, e um singleton que capturasse essa cadeia prenderia a mesma instância de `AppDbContext` para sempre (bug real encontrado e corrigido nesta sessão). `FilesystemToolProvider`/`DateTimeToolProvider`, sem estado, seguem `AddSingleton` normalmente.
 - **Erros de negócio**: `ApiException` (Application) com um `HttpStatusCode` associado (`NotFound`/`Conflict`/`BadGateway`/`Unauthorized`/`Forbidden`), capturado pelo `UseExceptionHandler` global em `Api/Program.cs`.
 - **Segredos**: senha e client secret → hash Argon2id (`IPasswordHasher`, one-way). Segredo de servidor MCP → criptografado reversível (`ISecretProtector`/Data Protection), porque precisa ser lido de volta para autenticar no MCP.
 - **Frontend**: cada página App Router monta sua própria composição de `AuthGuard` + navegação — não existe layout compartilhado. Multi-select "pill"/chip usa `Autocomplete multiple` do MUI com `renderValue` customizado (`KbMultiSelect`, `McpServerMultiSelect` seguem o mesmo padrão exato). `Paper` com elevação é o "card" idiomático do projeto — `Card`/`CardContent` do MUI não são usados em lugar nenhum.
@@ -254,7 +294,7 @@ OpenTelemetry .NET SDK, span raiz automático via `AddAspNetCoreInstrumentation`
 | `minio` | `9000` (S3), `9001` (console) | Armazenamento de documentos das KBs |
 | `rabbitmq` | `5672` (AMQP), `15672` (management) | Fila de ingestão |
 | `minio-init` | — | Container one-shot: cria bucket + configura *bucket notification* AMQP |
-| `backend` | `8090` | Api (ASP.NET Core); volume `dataprotection_keys:/keys` para persistir a chave de criptografia dos segredos MCP entre restarts |
+| `backend` | `8090` | Api (ASP.NET Core); volume `dataprotection_keys:/keys` para persistir a chave de criptografia dos segredos MCP entre restarts; volume `agent_filesystem:/agent-files` (`AppSettings__Filesystem__RootPath=/agent-files`) — raiz sandbox da ferramenta embutida `filesystem` |
 | `worker` | — | Worker de ingestão de KB |
 | `frontend` | `3000` | Next.js |
 | `langfuse-postgres` | `5433` | Postgres dedicado do Langfuse |
@@ -273,5 +313,10 @@ Ollama roda no **host** (`host.docker.internal:11434`), não em container. Porta
 - Agentes, KBs, sessões e servidores MCP são **públicos** para qualquer principal autenticado (usuário ou aplicação consumidora) — não há escopo por usuário nem por aplicação cliente.
 - Aplicações consumidoras têm acesso igual ao de um usuário comum (não-admin); não conseguem gerenciar usuários nem outras aplicações consumidoras.
 - A conexão com servidores MCP é refeita a cada turno de chat (sem cache de conexão entre requisições) — favorece correção sobre performance, já que a documentação oficial do SDK MCP não confirma reuso seguro de conexão entre requisições concorrentes.
+- Ferramentas embutidas (filesystem/datetime/skill-creator) são funções nativas no mesmo processo, não um servidor MCP real falando o protocolo — limitação conhecida do SDK oficial (`ModelContextProtocol.AspNetCore`) para múltiplas rotas MCP numa mesma app; do ponto de vista do usuário/UI são indistinguíveis de um servidor externo (mesma tela, mesmo multi-select).
+- Orquestração multi-agente é limitada a **1 nível de profundidade** por construção (um sub-agente nunca expande seus próprios sub-agentes) — não há suporte a cadeias de orquestração mais profundas.
+- Skills injetadas num agente entram inteiras no system prompt a cada turno — sem busca semântica/RAG sobre o conteúdo da skill, sem limite de tamanho aplicado, e sem cache: várias skills grandes num mesmo agente aumentam o prompt (e o custo) de todo turno.
+- Imagens de mensagens antigas não são reenviadas ao modelo em turnos subsequentes (só ficam disponíveis para exibição) — o modelo não "lembra" de imagens de turnos anteriores da mesma conversa.
+- Não há verificação de que o modelo do agente suporta visão computacional antes de permitir anexar imagem — depende do modelo ignorar graciosamente conteúdo multimodal que não suporta.
 - Sem projeto de testes automatizados ainda.
 - `npm run lint` pede setup interativo de ESLint (lacuna pré-existente do projeto) — `npm run build` já roda type-check + lint internamente e é o que se usa para validar.
